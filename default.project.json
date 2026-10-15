@@ -1,0 +1,66 @@
+{
+  "name": "SkyBonk",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": {
+        "$path": "src/shared"
+      }
+    },
+    "ServerScriptService": {
+      "$path": "src/server"
+    },
+    "ServerStorage": {
+      "EnemyModels": {
+        "$className": "Folder"
+      }
+    },
+    "StarterPlayer": {
+      "$properties": {
+        "CameraMaxZoomDistance": 48,
+        "CameraMinZoomDistance": 10,
+        "CameraMode": "Classic",
+        "CharacterWalkSpeed": 18,
+        "CharacterJumpPower": 50,
+        "CharacterUseJumpPower": true,
+        "DevComputerMovementMode": "UserChoice",
+        "DevTouchMovementMode": "UserChoice"
+      },
+      "StarterPlayerScripts": {
+        "$path": "src/client"
+      },
+      "StarterCharacterScripts": {
+        "$path": "src/character"
+      }
+    },
+    "Players": {
+      "$properties": {
+        "CharacterAutoLoads": false
+      }
+    },
+    "Workspace": {
+      "$properties": {
+        "StreamingEnabled": false,
+        "FallenPartsDestroyHeight": -445,
+        "Gravity": 196.2
+      },
+      "ActiveEnemies": {
+        "$className": "Folder"
+      },
+      "ExperienceOrbs": {
+        "$className": "Folder"
+      }
+    },
+    "Lighting": {
+      "$properties": {
+        "ClockTime": 14.5,
+        "Technology": "Future"
+      }
+    },
+    "SoundService": {
+      "$properties": {
+        "RespectFilteringEnabled": true
+      }
+    }
+  }
+}

@@ -1,0 +1,2 @@
+-- Sustituye al script "Health" por defecto de Roblox: en SkyBonk la vida no se
+-- regenera sola; solo el servidor la modifica (daño, mejoras y curaciones).
