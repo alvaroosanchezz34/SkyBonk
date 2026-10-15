@@ -41,7 +41,11 @@ local activeOffer: Types.OfferPayload? = nil
 local waitingResponse = false
 
 local function tween(instance: Instance, time: number, goal: { [string]: any }, style: Enum.EasingStyle?)
-	local t = TweenService:Create(instance, TweenInfo.new(time, style or Enum.EasingStyle.Quad, Enum.EasingDirection.Out), goal)
+	local t = TweenService:Create(
+		instance,
+		TweenInfo.new(time, style or Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		goal
+	)
 	t:Play()
 	return t
 end
@@ -92,6 +96,8 @@ local function buildCard(index: number, option: Types.OfferOptionPayload, showKe
 	end
 	local rarity = UpgradeConfig.Rarities[def.Rarity]
 	local rarityColor = rarity and rarity.Color or C.PanelStroke
+	local category = UpgradeConfig.Categories[def.Category]
+	local categoryColor = category and category.Color or rarityColor
 
 	local button = New("TextButton", {
 		Name = "Card" .. index,
@@ -127,11 +133,29 @@ local function buildCard(index: number, option: Types.OfferOptionPayload, showKe
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 26),
 		Size = UDim2.fromOffset(76, 76),
-		BackgroundColor3 = rarityColor:Lerp(C.Panel, 0.55),
+		BackgroundColor3 = categoryColor:Lerp(C.Panel, 0.5),
 		Parent = button,
 	}, {
 		New("UICorner", { CornerRadius = UDim.new(1, 0) }),
-		Theme.Stroke(rarityColor, 2, 0.1),
+		Theme.Stroke(categoryColor, 3, 0),
+	})
+	-- Distintivo de categoría (Ataque, Defensa, Movilidad, Experiencia): color + icono.
+	New("Frame", {
+		Name = "CategoryChip",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -10, 0, 22),
+		Size = UDim2.fromOffset(34, 34),
+		BackgroundColor3 = categoryColor,
+		Parent = button,
+	}, {
+		New("UICorner", { CornerRadius = UDim.new(1, 0) }),
+		Theme.Label({
+			Size = UDim2.fromScale(1, 1),
+			Text = category and category.Icon or "",
+			TextSize = 18,
+			Font = Theme.Fonts.Bold,
+			TextColor3 = C.Shadow,
+		}),
 	})
 	Theme.Label({
 		Size = UDim2.fromScale(1, 1),
@@ -158,7 +182,7 @@ local function buildCard(index: number, option: Types.OfferOptionPayload, showKe
 		Text = string.format("%s · %s", rarity and rarity.DisplayName or def.Rarity, def.Category),
 		Font = Theme.Fonts.Bold,
 		TextSize = 16,
-		TextColor3 = rarityColor,
+		TextColor3 = categoryColor,
 		Parent = button,
 	})
 	Theme.Label({
@@ -236,9 +260,9 @@ local function hide()
 	if not gui.Enabled then
 		return
 	end
-	tween(overlay, 0.2, { BackgroundTransparency = 1 })
-	tween(container, 0.2, { Position = UDim2.fromScale(0.5, 0.56) })
-	task.delay(0.2, function()
+	tween(overlay, 0.14, { BackgroundTransparency = 1 })
+	tween(container, 0.14, { Position = UDim2.fromScale(0.5, 0.56) })
+	task.delay(0.14, function()
 		if activeOffer == nil then
 			gui.Enabled = false
 			clearCards()
@@ -268,12 +292,12 @@ local function show(offer: Types.OfferPayload)
 	gui.Enabled = true
 	overlay.BackgroundTransparency = 1
 	container.Position = UDim2.fromScale(0.5, 0.56)
-	tween(overlay, 0.25, { BackgroundTransparency = 0.4 })
-	tween(container, 0.3, { Position = UDim2.fromScale(0.5, 0.5) }, Enum.EasingStyle.Back)
+	tween(overlay, 0.18, { BackgroundTransparency = 0.45 })
+	tween(container, 0.22, { Position = UDim2.fromScale(0.5, 0.5) }, Enum.EasingStyle.Back)
 	for index, card in cards do
 		task.delay((index - 1) * GameConfig.Effects.UpgradeCardStagger, function()
 			if card.Button.Parent then
-				tween(card.Scale, 0.25, { Scale = 1 }, Enum.EasingStyle.Back)
+				tween(card.Scale, 0.2, { Scale = 1 }, Enum.EasingStyle.Back)
 			end
 		end)
 	end
@@ -301,6 +325,15 @@ end
 
 function UpgradeController.IsOpen(): boolean
 	return activeOffer ~= nil
+end
+
+-- Ids de las cartas visibles, en orden (lo usa el piloto automático de Studio).
+function UpgradeController.GetOptionIds(): { string }
+	local ids = {}
+	for _, card in cards do
+		table.insert(ids, card.Id)
+	end
+	return ids
 end
 
 function UpgradeController.Init(allControllers)

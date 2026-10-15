@@ -96,6 +96,16 @@ local function onChooseUpgrade(player: Player, token: any, upgradeId: any)
 	services.MatchService.MarkHudDirty(run)
 end
 
+-- Solo depuración en Studio: elige la opción `index` de la oferta activa por
+-- la misma ruta validada que una petición del cliente.
+function UpgradeService.DebugChoose(player: Player, index: number)
+	local run = services.MatchService.GetRun(player)
+	local offer = run and run.State.ActiveOffer
+	if offer and offer.Options[index] then
+		onChooseUpgrade(player, offer.Token, offer.Options[index])
+	end
+end
+
 function UpgradeService.Start()
 	Net.ChooseUpgrade.OnServerEvent:Connect(onChooseUpgrade)
 end

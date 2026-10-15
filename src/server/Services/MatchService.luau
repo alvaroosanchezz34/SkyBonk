@@ -24,17 +24,23 @@ local Logic = script.Parent.Parent.Logic
 local RunState = require(Logic.RunState)
 local StatSheet = require(Logic.StatSheet)
 local RateLimiter = require(Logic.RateLimiter)
+local ModelFactory = require(script.Parent.Parent.World.ModelFactory)
 local ServerTypes = require(script.Parent.Parent.ServerTypes)
 
 type Run = ServerTypes.Run
 
 local MatchService = {}
 
+-- Marcadores del MicroProfiler (no existen fuera de Roblox, p. ej. en las pruebas con Lune).
+local profileBegin = debug.profilebegin or function(_label: string) end
+local profileEnd = debug.profileend or function() end
+
 local services: ServerTypes.Services
 local runs: { [Player]: Run } = {}
 local starting: { [Player]: boolean } = {}
 local readyLimiter = RateLimiter.new(GameConfig.RateLimits.ClientReady.Max, GameConfig.RateLimits.ClientReady.Window)
-local restartLimiter = RateLimiter.new(GameConfig.RateLimits.RequestRestart.Max, GameConfig.RateLimits.RequestRestart.Window)
+local restartLimiter =
+	RateLimiter.new(GameConfig.RateLimits.RequestRestart.Max, GameConfig.RateLimits.RequestRestart.Window)
 
 local function disconnectAll(connections: { RBXScriptConnection })
 	for _, connection in connections do
@@ -144,6 +150,9 @@ function MatchService.DamagePlayer(run: Run, rawDamage: number, ignoreReduction:
 		return false
 	end
 	humanoid.Health = math.max(0, humanoid.Health - amount)
+	if not ignoreReduction then
+		run.InvulnerableUntil = math.max(run.InvulnerableUntil, run.State.Elapsed + GameConfig.Player.HitInvulnerability)
+	end
 	Net.PlayerDamaged:FireClient(run.Player, {
 		Amount = amount,
 		Health = humanoid.Health,
@@ -231,6 +240,7 @@ function MatchService.StartRun(player: Player)
 		HudDirty = true,
 		LastHudSentAt = 0,
 		NextFallCheckAt = 0,
+		NextRegenAt = 0,
 		EndedAt = nil,
 	}
 
@@ -238,21 +248,35 @@ function MatchService.StartRun(player: Player)
 	humanoid.Health = humanoid.MaxHealth
 	humanoid.WalkSpeed = StatSheet.walkSpeed(run.State.Stats)
 	setCharacterCollisionGroup(character)
+	-- Espada del Vendaval visible en la mano (solo decorativa: el daño lo calcula CombatService).
+	local hand = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
+	if hand and hand:IsA("BasePart") then
+		ModelFactory.attachGaleSword(character, hand)
+	end
 
-	table.insert(run.Connections, humanoid.Died:Connect(function()
-		MatchService.EndRun(run, "Died")
-	end))
-	table.insert(run.Connections, character.DescendantAdded:Connect(function(descendant)
-		if descendant:IsA("BasePart") then
-			descendant.CollisionGroup = "Players"
-		end
-	end))
-	table.insert(run.Connections, character.AncestryChanged:Connect(function(_, parent)
-		-- El personaje ha desaparecido (p. ej. destruido por el motor): derrota.
-		if parent == nil and run.State.Phase ~= "GameOver" then
-			MatchService.EndRun(run, "CharacterRemoved")
-		end
-	end))
+	table.insert(
+		run.Connections,
+		humanoid.Died:Connect(function()
+			MatchService.EndRun(run, "Died")
+		end)
+	)
+	table.insert(
+		run.Connections,
+		character.DescendantAdded:Connect(function(descendant)
+			if descendant:IsA("BasePart") then
+				descendant.CollisionGroup = "Players"
+			end
+		end)
+	)
+	table.insert(
+		run.Connections,
+		character.AncestryChanged:Connect(function(_, parent)
+			-- El personaje ha desaparecido (p. ej. destruido por el motor): derrota.
+			if parent == nil and run.State.Phase ~= "GameOver" then
+				MatchService.EndRun(run, "CharacterRemoved")
+			end
+		end)
+	)
 
 	runs[player] = run
 	services.SpawnService.SetupRun(run)
@@ -261,6 +285,21 @@ function MatchService.StartRun(player: Player)
 	services.CombatService.SetupRun(run)
 	starting[player] = nil
 	sendHud(run)
+end
+
+-- Savia Vital: regeneración periódica en tiempo de partida.
+local function regenerate(run: Run)
+	local regen = run.State.Stats.HealthRegen
+	if regen <= 0 or run.State.Elapsed < run.NextRegenAt then
+		return
+	end
+	local interval = GameConfig.Match.RegenInterval
+	run.NextRegenAt = run.State.Elapsed + interval
+	local humanoid = run.Humanoid
+	if humanoid.Health > 0 and humanoid.Health < humanoid.MaxHealth then
+		humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + regen * interval)
+		run.HudDirty = true
+	end
 end
 
 -- Caída fuera del mapa: reaparición controlada con penalización de vida.
@@ -284,6 +323,7 @@ local function checkFall(run: Run)
 end
 
 local function step(dt: number)
+	profileBegin("SkyBonk.ServerStep")
 	local now = os.clock()
 	for _, run in runs do
 		if not run.Active then
@@ -298,6 +338,7 @@ local function step(dt: number)
 			services.ExperienceService.Step(run)
 			if state.Phase == "Playing" then
 				checkFall(run)
+				regenerate(run)
 			end
 			-- El tiempo cambia en cada frame; el HUD lo extrapola en el cliente.
 		end
@@ -305,6 +346,7 @@ local function step(dt: number)
 			sendHud(run)
 		end
 	end
+	profileEnd()
 end
 
 local function onPlayerAdded(player: Player)

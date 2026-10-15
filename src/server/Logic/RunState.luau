@@ -102,7 +102,7 @@ function RunState.tryOpenOffer(state: RunState, rng: UpgradeLogic.Rng): Types.Of
 	if level == nil then
 		return nil
 	end
-	local options = UpgradeLogic.rollOptions(contextOf(state), rng)
+	local options = UpgradeLogic.rollOptions(contextOf(state), rng, nil, level)
 	if #options == 0 then
 		-- Sin opciones ni comodines: el nivel se considera resuelto.
 		return nil

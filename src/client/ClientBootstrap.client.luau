@@ -25,18 +25,34 @@ end
 local REQUIRED_CLIENT_MODULES = {
 	{ "UI", "Theme" },
 	{ "Util", "Sfx" },
+	{ "Util", "FxPool" },
 	{ "Controllers", "InputController" },
 	{ "Controllers", "CameraController" },
 	{ "Controllers", "HUDController" },
 	{ "Controllers", "UpgradeController" },
 	{ "Controllers", "GameOverController" },
 	{ "Controllers", "CombatEffectsController" },
+	{ "Controllers", "EnemyVisualsController" },
+	{ "Controllers", "MusicController" },
+	{ "Controllers", "DebugController" },
 }
 for _, path in REQUIRED_CLIENT_MODULES do
 	waitFor(root, path)
 end
 local Shared = ReplicatedStorage:WaitForChild("Shared")
-for _, path in { { "Net" }, { "Signal" }, { "Types" }, { "Progression" }, { "Remotes" }, { "Config", "GameConfig" }, { "Config", "WeaponConfig" }, { "Config", "EnemyConfig" }, { "Config", "UpgradeConfig" } } do
+for _, path in
+	{
+		{ "Net" },
+		{ "Signal" },
+		{ "Types" },
+		{ "Progression" },
+		{ "Remotes" },
+		{ "Config", "GameConfig" },
+		{ "Config", "WeaponConfig" },
+		{ "Config", "EnemyConfig" },
+		{ "Config", "UpgradeConfig" },
+	}
+do
 	waitFor(Shared, path)
 end
 
@@ -51,6 +67,9 @@ local controllers = {
 	UpgradeController = require(ControllersFolder.UpgradeController),
 	GameOverController = require(ControllersFolder.GameOverController),
 	CombatEffectsController = require(ControllersFolder.CombatEffectsController),
+	EnemyVisualsController = require(ControllersFolder.EnemyVisualsController),
+	MusicController = require(ControllersFolder.MusicController),
+	DebugController = require(ControllersFolder.DebugController),
 }
 local START_ORDER = {
 	"InputController",
@@ -59,6 +78,9 @@ local START_ORDER = {
 	"UpgradeController",
 	"GameOverController",
 	"CombatEffectsController",
+	"EnemyVisualsController",
+	"MusicController",
+	"DebugController",
 }
 
 Theme.StartAutoScale()

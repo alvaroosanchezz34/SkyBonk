@@ -556,6 +556,12 @@ function FakeEngine.createNet(names: { string })
 				handler(...)
 			end
 		end
+		function remote.FireAllClients(_self, ...)
+			table.insert(log, { name = name, args = { ... } })
+			for _, handler in clientHandlers[name] or {} do
+				handler(...)
+			end
+		end
 		function remote.FireServer(self, player, ...)
 			self.OnServerEvent:Fire(player, ...)
 		end

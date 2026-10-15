@@ -13,14 +13,17 @@
     "ServerStorage": {
       "EnemyModels": {
         "$className": "Folder"
+      },
+      "SkyBonkAssets": {
+        "$path": "assets"
       }
     },
     "StarterPlayer": {
       "$properties": {
-        "CameraMaxZoomDistance": 48,
+        "CameraMaxZoomDistance": 52,
         "CameraMinZoomDistance": 10,
         "CameraMode": "Classic",
-        "CharacterWalkSpeed": 18,
+        "CharacterWalkSpeed": 20,
         "CharacterJumpPower": 50,
         "CharacterUseJumpPower": true,
         "DevComputerMovementMode": "UserChoice",

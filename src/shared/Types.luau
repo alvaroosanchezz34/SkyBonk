@@ -18,18 +18,33 @@ export type WeaponDef = {
 	Projectiles: number,
 	MaxProjectiles: number,
 	TargetsPerProjectile: number,
+	MaxTargetsPerProjectile: number,
+	ProjectileSpeed: number, -- studs/s de la hoja visual (decide el instante del impacto)
+	WindupTime: number, -- anticipación del tajo antes de lanzar las hojas
+	ChainRange: number, -- distancia máxima de los saltos de Filo de Tormenta
 	Color: Color3,
 }
+
+-- Lunge: salto corto hacia el jugador. Melee: tajo frontal. Slam: golpe en área.
+export type EnemyAttackKind = "Lunge" | "Melee" | "Slam"
 
 export type EnemyDef = {
 	Id: string,
 	DisplayName: string,
 	ModelName: string,
+	Rig: "Slime" | "Skeleton",
+	Scale: number, -- escala del modelo respecto a la plantilla
 	MaxHealth: number,
 	ContactDamage: number,
 	MoveSpeed: number,
-	AttackRange: number,
+	AttackKind: EnemyAttackKind,
+	AttackRange: number, -- distancia horizontal a la que se inicia el ataque
+	HitRange: number, -- distancia a la que el golpe impacta al terminar la anticipación
+	AttackWindup: number, -- segundos de anticipación visible antes del daño
 	AttackCooldown: number,
+	Poise: boolean, -- true = los impactos no interrumpen su ataque
+	Knockback: number, -- velocidad del retroceso al recibir un impacto (studs/s)
+	HopFrequency: number?, -- saltos por segundo (solo slimes): modula la velocidad
 	XpReward: number,
 	Color: Color3,
 }
@@ -46,6 +61,10 @@ export type Stats = {
 	DamageTakenMult: number,
 	Luck: number,
 	ExtraProjectiles: number,
+	ExtraChain: number,
+	CritChance: number,
+	HealthRegen: number,
+	MagnetPct: number,
 }
 
 export type StatName =
@@ -58,6 +77,10 @@ export type StatName =
 	| "DamageTakenMult"
 	| "Luck"
 	| "ExtraProjectiles"
+	| "ExtraChain"
+	| "CritChance"
+	| "HealthRegen"
+	| "MagnetPct"
 
 -- "Add" suma Value a la estadística, "Mul" la multiplica y "HealPct" cura
 -- al instante un porcentaje de la vida máxima (no modifica Stats).
@@ -97,6 +120,7 @@ export type WeaponStats = {
 	Range: number,
 	Projectiles: number,
 	TargetsPerProjectile: number,
+	CritChance: number,
 }
 
 export type Offer = {
@@ -136,6 +160,10 @@ export type StatSummary = {
 	DamageReductionPct: number,
 	XpBonusPct: number,
 	Luck: number,
+	CritPct: number,
+	Chain: number,
+	Regen: number,
+	Magnet: number,
 }
 
 export type HudSnapshot = {

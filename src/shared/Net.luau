@@ -11,7 +11,9 @@
 	  HudUpdate(snapshot)        estado de la partida para el HUD
 	  UpgradeOffer(offer)        abrir la pantalla de mejoras
 	  UpgradeResolved(result)    la oferta se ha cerrado (o la elección se rechazó)
-	  CombatFx(attack)           efectos visuales de un ataque
+	  CombatFx(attack)           tajo y hojas lanzadas (solo presentación)
+	  CombatHits(hits)           impactos aplicados por el servidor (daño, crítico, muerte)
+	  WorldFx(event)             efectos del mundo (p. ej. Cristal de Esencia roto)
 	  EnemyDied(info)            efecto de muerte de un enemigo
 	  GemCollected(info)         efecto de recogida de experiencia
 	  PlayerDamaged(info)        indicador de daño recibido
@@ -29,6 +31,8 @@ local NAMES = {
 	"UpgradeOffer",
 	"UpgradeResolved",
 	"CombatFx",
+	"CombatHits",
+	"WorldFx",
 	"EnemyDied",
 	"GemCollected",
 	"PlayerDamaged",

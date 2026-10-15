@@ -37,8 +37,11 @@ return function(it, expect)
 				expect.truthy(#def.Effects > 0, def.Id .. " no hace nada")
 			end
 		end
-		-- Las 10 mejoras pedidas + el comodín.
-		expect.equal(#UpgradeConfig.List, 11)
+		-- 14 mejoras (13 activas + Impulso Arcano desactivada) + el comodín.
+		expect.equal(#UpgradeConfig.List, 15)
+		for _, def in UpgradeConfig.List do
+			expect.truthy(UpgradeConfig.Categories[def.Category] ~= nil, def.Id .. " sin categoría visual")
+		end
 	end)
 
 	it("una oferta tiene tres opciones distintas y válidas (1000 tiradas)", function()
@@ -147,16 +150,30 @@ return function(it, expect)
 			TwinBlade = function(s)
 				return StatSheet.weaponStats(s, WeaponConfig.GaleSword).Projectiles
 			end,
+			StormEdge = function(s)
+				return StatSheet.weaponStats(s, WeaponConfig.GaleSword).TargetsPerProjectile
+			end,
+			KeenStrike = function(s)
+				return StatSheet.weaponStats(s, WeaponConfig.GaleSword).CritChance
+			end,
+			VitalSap = function(s)
+				return s.HealthRegen
+			end,
+			CelestialMagnet = StatSheet.magnetRadius,
 		}
 		local expected = {
-			SharpEdge = 12 * 1.15,
-			SwiftStrike = 1.4 * 0.9,
-			AstralReach = 28 * 1.15,
+			SharpEdge = 15 * 1.2,
+			SwiftStrike = 1.0 * 0.88,
+			AstralReach = 30 * 1.2,
 			BasaltHeart = 120,
-			HawkSteps = 18 * 1.1,
-			ConcentratedEssence = 11.5,
+			HawkSteps = 20 * 1.12,
+			ConcentratedEssence = 12,
 			StoneSkin = 9,
 			TwinBlade = 2,
+			StormEdge = 2,
+			KeenStrike = 0.12,
+			VitalSap = 1,
+			CelestialMagnet = 11 * 1.35,
 		}
 		for id, measure in cases do
 			local state = newRunWithLevels(1)
@@ -248,5 +265,26 @@ return function(it, expect)
 		expect.equal(RunState.grantXp(state, 100), 0)
 		RunState.addKill(state)
 		expect.equal(state.Kills, 0)
+	end)
+	it("hasta el nivel 4 cada oferta incluye al menos una mejora de Ataque", function()
+		local rng = makeRng(7)
+		for level = 2, 4 do
+			for _ = 1, 300 do
+				local state = RunState.new({ "GaleSword" })
+				local options = UpgradeLogic.rollOptions({
+					Stats = state.Stats,
+					Weapons = state.Weapons,
+					UpgradeLevels = state.UpgradeLevels,
+				}, rng, nil, level)
+				local attack = false
+				for _, id in options do
+					if UpgradeConfig.ById[id].Category == "Ataque" then
+						attack = true
+					end
+				end
+				expect.truthy(attack, "oferta del nivel " .. level .. " sin mejora de Ataque")
+				expect.equal(#options, 3)
+			end
+		end
 	end)
 end

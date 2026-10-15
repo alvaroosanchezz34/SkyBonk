@@ -25,6 +25,10 @@ function StatSheet.new(): Stats
 		DamageTakenMult = 1,
 		Luck = 0,
 		ExtraProjectiles = 0,
+		ExtraChain = 0,
+		CritChance = 0,
+		HealthRegen = 0,
+		MagnetPct = 0,
 	}
 end
 
@@ -59,14 +63,25 @@ function StatSheet.projectilesFor(stats: Stats, def: Types.WeaponDef): number
 	return math.clamp(def.Projectiles + stats.ExtraProjectiles, 1, def.MaxProjectiles)
 end
 
+function StatSheet.targetsFor(stats: Stats, def: Types.WeaponDef): number
+	return math.clamp(def.TargetsPerProjectile + stats.ExtraChain, 1, def.MaxTargetsPerProjectile)
+end
+
 function StatSheet.weaponStats(stats: Stats, def: Types.WeaponDef): Types.WeaponStats
 	return {
 		Damage = def.Damage * (1 + stats.DamagePct),
 		Cooldown = math.max(def.MinCooldown, def.Cooldown * stats.CooldownMult),
 		Range = def.Range * (1 + stats.RangePct),
 		Projectiles = StatSheet.projectilesFor(stats, def),
-		TargetsPerProjectile = def.TargetsPerProjectile,
+		TargetsPerProjectile = StatSheet.targetsFor(stats, def),
+		CritChance = math.clamp(stats.CritChance, 0, 0.75),
 	}
+end
+
+-- Radio en el que las gemas empiezan a volar hacia el jugador.
+function StatSheet.magnetRadius(stats: Stats): number
+	local player = GameConfig.Player
+	return math.min(player.MaxMagnetRadius, player.MagnetRadius * (1 + stats.MagnetPct))
 end
 
 function StatSheet.maxHealth(stats: Stats): number
@@ -101,6 +116,10 @@ function StatSheet.summary(stats: Stats, primaryWeapon: Types.WeaponDef?): Types
 		DamageReductionPct = (1 - stats.DamageTakenMult) * 100,
 		XpBonusPct = stats.XpGainPct * 100,
 		Luck = stats.Luck,
+		CritPct = (weapon and weapon.CritChance or 0) * 100,
+		Chain = weapon and weapon.TargetsPerProjectile - 1 or 0,
+		Regen = stats.HealthRegen,
+		Magnet = StatSheet.magnetRadius(stats),
 	}
 end
 

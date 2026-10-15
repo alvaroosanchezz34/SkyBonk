@@ -27,6 +27,8 @@ local REMOTE_NAMES = {
 	"UpgradeOffer",
 	"UpgradeResolved",
 	"CombatFx",
+	"CombatHits",
+	"WorldFx",
 	"EnemyDied",
 	"GemCollected",
 	"PlayerDamaged",
@@ -62,6 +64,9 @@ local GameConfig = harness.require(harness.path("src/shared/Config/GameConfig.lu
 local UpgradeConfig = harness.require(harness.path("src/shared/Config/UpgradeConfig.luau"))
 local StatSheet = harness.require(harness.path("src/server/Logic/StatSheet.luau"))
 local WeaponConfig = harness.require(harness.path("src/shared/Config/WeaponConfig.luau"))
+local Progression = harness.require(harness.path("src/shared/Progression.luau"))
+local MapLayout = harness.require(harness.path("src/server/World/MapLayout.luau"))
+local BASE_SPEED = GameConfig.Player.BaseWalkSpeed
 
 local servicesFolder = "src/server/Services/"
 local services = {}
@@ -133,11 +138,10 @@ world.Workspace.ActiveEnemies.ChildAdded:Connect(function(model)
 	if run and root then
 		local offset = root.Position - run.Root.Position
 		local flat = math.sqrt(offset.X * offset.X + offset.Z * offset.Z)
-		if flat < GameConfig.Spawn.MinRadius * 0.9 then
+		if flat < GameConfig.Spawn.MinRadius * 0.55 * 0.9 then -- radio mínimo de reserva
 			counters.spawnTooClose += 1
 		end
-		local fromCenter = math.sqrt(root.Position.X ^ 2 + root.Position.Z ^ 2)
-		if fromCenter > GameConfig.Map.PlayableRadius - GameConfig.Spawn.EdgeMargin + 0.01 then
+		if not MapLayout.isWalkable(root.Position, GameConfig.Spawn.EdgeMargin - 0.01) then
 			counters.spawnOutside += 1
 		end
 	end
@@ -193,12 +197,13 @@ end)
 onClient("UpgradeResolved", function(result)
 	table.insert(resolved, result)
 end)
-onClient("CombatFx", function(attack)
+onClient("CombatHits", function(payload)
 	local run = currentRun()
 	local expected = StatSheet.weaponStats(run.State.Stats, WeaponConfig.GaleSword).Damage
-	for _, hit in attack.Hits do
+	for _, hit in payload.Hits do
 		counters.combatHits += 1
-		if hit.Damage > expected + 1e-6 or hit.Damage <= 0 then
+		local cap = expected * (if hit.Crit then GameConfig.Combat.CritMultiplier else 1)
+		if hit.Damage > cap + 1e-6 or hit.Damage <= 0 then
 			counters.badDamage += 1
 		end
 	end
@@ -268,7 +273,7 @@ local function moveBot(run)
 	-- Cerca del borde, gira hacia dentro.
 	local fromCenter = Vector3.new(position.X, 0, position.Z)
 	if fromCenter.Magnitude > 70 then
-		direction = (direction + (-fromCenter.Unit) * ((fromCenter.Magnitude - 70) / 10)).Unit
+		direction = (direction + -fromCenter.Unit * ((fromCenter.Magnitude - 70) / 10)).Unit
 	end
 	run.Root.CFrame = run.Root.CFrame + direction * speed * DT
 end
@@ -332,8 +337,11 @@ local run = currentRun()
 check(run ~= nil, "la partida empieza al recibir ClientReady")
 check(run and run.State.Phase == "Playing", "estado inicial Playing")
 check(run and run.Humanoid.MaxHealth == 100 and run.Humanoid.Health == 100, "vida inicial 100/100")
-check(run and math.abs(run.Humanoid.WalkSpeed - 18) < 1e-6, "velocidad base 18")
-check(lastHud and lastHud.Level == 1 and lastHud.XpToNext == 5, "HUD inicial (nivel 1, 0/5 XP)")
+check(run and math.abs(run.Humanoid.WalkSpeed - BASE_SPEED) < 1e-6, "velocidad base " .. BASE_SPEED)
+check(
+	lastHud and lastHud.Level == 1 and lastHud.XpToNext == Progression.xpToNext(1),
+	"HUD inicial (nivel 1, 0/" .. Progression.xpToNext(1) .. " XP)"
+)
 net.ClientReady:FireServer(player)
 check(currentRun() == run, "un segundo ClientReady no reinicia la partida")
 
@@ -344,8 +352,10 @@ check(services.EnemyService.Count(run) == 0, "periodo de gracia: sin enemigos lo
 section("B-E · Combate, experiencia, niveles y mejoras")
 -- Seguridad antes de la primera oferta: elección fuera de tiempo.
 net.ChooseUpgrade:FireServer(player, 1, "SharpEdge")
-check(#resolved == 1 and resolved[1].Accepted == false and resolved[1].Reason == "NotChoosing",
-	"elección fuera de tiempo rechazada")
+check(
+	#resolved == 1 and resolved[1].Accepted == false and resolved[1].Reason == "NotChoosing",
+	"elección fuera de tiempo rechazada"
+)
 
 local firstOfferChecked = false
 local damageBefore = nil
@@ -389,7 +399,10 @@ check(counters.gemValueCollected <= counters.gemValueSpawned, "no se recoge más
 check(run.State.Progress.Level >= 5, "se suben varios niveles (nivel " .. run.State.Progress.Level .. ")")
 check(counters.offers == run.State.Progress.Level - 1, "una oferta por nivel ganado")
 check(counters.badOffers == 0, "todas las ofertas tienen 3 opciones distintas y válidas")
-check(counters.pauseViolations == 0, "pausa real durante la selección (" .. counters.pauseViolations .. " violaciones)")
+check(
+	counters.pauseViolations == 0,
+	"pausa real durante la selección (" .. counters.pauseViolations .. " violaciones)"
+)
 local totalUpgrades = 0
 for _, level in run.State.UpgradeLevels do
 	totalUpgrades += level
@@ -406,7 +419,11 @@ check(
 			or run.State.Stats.DamageTakenMult ~= 1
 			or run.State.Stats.Luck ~= 0
 			or run.State.Stats.XpGainPct ~= 0
-			or run.Humanoid.WalkSpeed ~= 18
+			or run.Humanoid.WalkSpeed ~= BASE_SPEED
+			or damageAfter.TargetsPerProjectile ~= damageBefore.TargetsPerProjectile
+			or damageAfter.CritChance ~= damageBefore.CritChance
+			or run.State.Stats.HealthRegen ~= 0
+			or run.State.Stats.MagnetPct ~= 0
 			or run.State.Stats.RangePct ~= 0
 		),
 	"las mejoras elegidas cambian estadísticas reales"
@@ -442,15 +459,17 @@ end
 check(#resolved - beforeSpam <= GameConfig.RateLimits.ChooseUpgrade.Max, "spam de ChooseUpgrade limitado")
 runFor(1.2)
 
-print(string.format(
-	"  · %0.1f s de partida | nivel %d | %d muertes | %d golpes | máx. %d enemigos simultáneos | %d golpes recibidos",
-	run.State.Elapsed,
-	run.State.Progress.Level,
-	run.State.Kills,
-	counters.combatHits,
-	counters.maxEnemies,
-	counters.playerDamaged
-))
+print(
+	string.format(
+		"  · %0.1f s de partida | nivel %d | %d muertes | %d golpes | máx. %d enemigos simultáneos | %d golpes recibidos",
+		run.State.Elapsed,
+		run.State.Progress.Level,
+		run.State.Kills,
+		counters.combatHits,
+		counters.maxEnemies,
+		counters.playerDamaged
+	)
+)
 
 print("  · ritmo de niveles: " .. table.concat(levelTimes, ", "))
 
@@ -485,8 +504,10 @@ runFor(600, function()
 end)
 check(run.State.Phase == "GameOver", "el jugador puede morir")
 check(counters.gameOvers == 1, "la derrota se procesa una sola vez")
-check(lastGameOver and lastGameOver.Level == run.State.Progress.Level and lastGameOver.Kills == run.State.Kills,
-	"resumen de derrota correcto")
+check(
+	lastGameOver and lastGameOver.Level == run.State.Progress.Level and lastGameOver.Kills == run.State.Kills,
+	"resumen de derrota correcto"
+)
 local killsAtDeath = run.State.Kills
 local elapsedAtDeath = run.State.Elapsed
 services.LevelService.GrantExperience(run, 50)
@@ -516,6 +537,53 @@ check(currentRun() == newRun, "no se puede reiniciar una partida en curso")
 runFor(20)
 check(services.EnemyService.Count(newRun) > 0, "la nueva partida genera enemigos")
 check(newRun.State.Elapsed > 15, "la nueva partida avanza")
+
+------------------------------------------------- Ritmo de progresión
+section("A · Ritmo de progresión (5 min con el bot)")
+local levelAt60, levelAt180 = nil, nil
+runFor(400, function()
+	if levelAt60 == nil and newRun.State.Elapsed >= 60 then
+		levelAt60 = newRun.State.Progress.Level
+	end
+	if levelAt180 == nil and newRun.State.Elapsed >= 180 then
+		levelAt180 = newRun.State.Progress.Level
+	end
+	return newRun.State.Elapsed >= 300 or newRun.State.Phase == "GameOver"
+end)
+local times = services.LevelService.GetLevelTimes(newRun)
+print("  · niveles: " .. table.concat(times, ", "))
+print(
+	string.format(
+		"  · %.0f s | nivel %d | %d muertes | %d enemigos vivos | vida %.0f/%.0f | %s",
+		newRun.State.Elapsed,
+		newRun.State.Progress.Level,
+		newRun.State.Kills,
+		services.EnemyService.Count(newRun),
+		newRun.Humanoid.Health,
+		newRun.Humanoid.MaxHealth,
+		newRun.State.Phase
+	)
+)
+local function levelTime(level: number): number?
+	for _, entry in times do
+		local lv, t = string.match(entry, "^Nv(%d+)@(%d+)s$")
+		if tonumber(lv) == level then
+			return tonumber(t)
+		end
+	end
+	return nil
+end
+local first, second = levelTime(2), levelTime(3)
+check(first ~= nil and first >= 8 and first <= 25, "primera mejora entre 8 y 25 s (" .. tostring(first) .. " s)")
+check(second ~= nil and second <= 60, "segunda mejora antes de 60 s (" .. tostring(second) .. " s)")
+check(
+	levelAt60 ~= nil and levelAt60 >= 4,
+	"varias decisiones en el primer minuto (nivel " .. tostring(levelAt60) .. ")"
+)
+check(
+	levelAt180 == nil or levelAt180 <= 16,
+	"la curva se ralentiza: sin niveles absurdos (nivel " .. tostring(levelAt180) .. " a los 180 s)"
+)
 
 section("Salida del jugador")
 world.Players.PlayerRemoving:Fire(player)

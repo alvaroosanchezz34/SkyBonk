@@ -117,6 +117,67 @@ if RunService:IsStudio() then
 				local run = firstRun()
 				return if run then services.EnemyService.Count(run) else 0
 			end,
+			-- Elige la opción `index` de la oferta abierta.
+			Choose = function(index: number?)
+				local player = Players:GetPlayers()[1]
+				if player then
+					services.UpgradeService.DebugChoose(player, index or 1)
+				end
+			end,
+			-- Genera enemigos de un tipo cerca del jugador (pruebas visuales).
+			Spawn = function(enemyId: string, count: number?)
+				local run = firstRun()
+				if run == nil then
+					return 0
+				end
+				local spawned = 0
+				for _ = 1, count or 1 do
+					local position = services.SpawnService.FindSpawnPosition(run)
+					if position and services.EnemyService.Spawn(run, enemyId, position, services.SpawnService.DifficultyAt(run.State.Elapsed)) then
+						spawned += 1
+					end
+				end
+				return spawned
+			end,
+			-- Piloto automático del cliente (DebugController) para medir el ritmo.
+			Autopilot = function(enabled: boolean)
+				local player = Players:GetPlayers()[1]
+				if player then
+					player:SetAttribute("Autopilot", enabled == true)
+				end
+			end,
+			-- Registro de tiempos: niveles alcanzados, enemigos y vida.
+			Report = function(): string
+				local run = firstRun()
+				if run == nil then
+					return "sin partida"
+				end
+				return string.format(
+					"t=%.1fs nivel=%d xp=%d muertes=%d enemigos=%d vida=%.0f/%.0f fase=%s niveles={%s}",
+					run.State.Elapsed,
+					run.State.Progress.Level,
+					run.State.Progress.Xp,
+					run.State.Kills,
+					services.EnemyService.Count(run),
+					run.Humanoid.Health,
+					run.Humanoid.MaxHealth,
+					run.State.Phase,
+					table.concat(services.LevelService.GetLevelTimes(run), ", ")
+				)
+			end,
 		}
+		-- Misma API como BindableFunction (la barra de comandos y las herramientas
+		-- de Studio no comparten _G con los scripts del juego):
+		--   ServerStorage.SkyBonkDebug:Invoke("Report")
+		local bindable = Instance.new("BindableFunction")
+		bindable.Name = "SkyBonkDebug"
+		bindable.OnInvoke = function(command: string, ...)
+			local fn = _G.SkyBonkDebug[command]
+			if fn == nil then
+				return "comando desconocido: " .. tostring(command)
+			end
+			return fn(...)
+		end
+		bindable.Parent = ServerStorage
 	end
 end

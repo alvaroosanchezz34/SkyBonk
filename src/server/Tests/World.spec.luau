@@ -4,6 +4,7 @@ local GameConfig = require(Shared.Config.GameConfig)
 local EnemyConfig = require(Shared.Config.EnemyConfig)
 local MapBuilder = require(script.Parent.Parent.World.MapBuilder)
 local ModelFactory = require(script.Parent.Parent.World.ModelFactory)
+local MapLayout = require(script.Parent.Parent.World.MapLayout)
 
 local function countParts(root: Instance): (number, number)
 	local total, colliding = 0, 0
@@ -32,8 +33,9 @@ return function(it, expect)
 		expect.truthy(math.abs(offset.X) < 0.01 and math.abs(offset.Z) < 0.01, "spawn desplazado")
 
 		local total = countParts(map)
-		expect.truthy(total > 60, "mapa demasiado vacío: " .. total)
-		expect.truthy(total < 320, "demasiadas piezas para móvil: " .. total)
+		expect.truthy(total > 300, "mapa demasiado vacío: " .. total)
+		-- Presupuesto para móvil: piezas ancladas y simples (sin contar el kit, que son mallas).
+		expect.truthy(total < 1500, "demasiadas piezas para móvil: " .. total)
 
 		for _, descendant in map:GetDescendants() do
 			if descendant:IsA("BasePart") then
@@ -47,22 +49,35 @@ return function(it, expect)
 			end
 		end
 
-		-- La superficie cubre el radio jugable: algún bloque de suelo llega al borde.
-		local maxReach = 0
-		for _, part in ground:GetChildren() do
-			if part:IsA("BasePart") and string.find(part.Name, "IslandRim") then
-				local p = part.CFrame.Position
-				local reach = math.sqrt(p.X * p.X + p.Z * p.Z) + part.Size.Z / 2
-				maxReach = math.max(maxReach, reach)
+		-- Cada punto que MapLayout considera caminable tiene suelo debajo (raycast real).
+		-- (solo en Studio: fuera de Roblox no hay raycast real)
+		if RaycastParams and workspace and workspace.Raycast then
+			local params = RaycastParams.new()
+			params.FilterType = Enum.RaycastFilterType.Include
+			params.FilterDescendantsInstances = { ground }
+			holder.Parent = workspace
+			local misses = 0
+			for x = -110, 110, 10 do
+				for z = -110, 150, 10 do
+					local point = Vector3.new(x, 0, z)
+					if MapLayout.isWalkable(point, 2) then
+						local hit = workspace:Raycast(point + Vector3.new(0, 30, 0), Vector3.new(0, -60, 0), params)
+						if hit == nil then
+							misses += 1
+						end
+					end
+				end
 			end
+			expect.equal(misses, 0, "puntos caminables sin suelo")
 		end
-		expect.truthy(maxReach >= GameConfig.Map.PlayableRadius, "el borde no cubre el radio jugable")
+		expect.truthy(map:FindFirstChild("Interactables"), "faltan los Cristales de Esencia")
+		expect.equal(#map.Interactables:GetChildren(), #MapLayout.EssenceCrystals)
 		holder:Destroy()
 	end)
 
 	it("la plantilla del Slime del Vacío tiene todas las piezas necesarias", function()
 		local def = EnemyConfig.VoidSlime
-		local model = ModelFactory.Builders[def.ModelName](def)
+		local model = ModelFactory.Builders[def.Rig](def)
 		local root = model:FindFirstChild("Root")
 		expect.truthy(root and model.PrimaryPart == root, "Root no es PrimaryPart")
 		expect.truthy(root:FindFirstChild("RootAttachment"))
@@ -76,5 +91,44 @@ return function(it, expect)
 		expect.equal(colliding, 1, "solo Root debe colisionar")
 		expect.truthy(total <= 10, "demasiadas piezas por enemigo: " .. total)
 		model:Destroy()
+	end)
+	it("la navegación sube a las mesetas por su acceso y cruza el puente en ambos sentidos", function()
+		local entry, exit = MapLayout.route("Main", "Ruins")
+		expect.truthy(entry and exit, "sin acceso a las Ruinas")
+		expect.truthy(MapLayout.onMainIsland(entry :: Vector3, 0), "la entrada de la rampa no está en la isla")
+		expect.equal(MapLayout.areaAt(exit :: Vector3), "Ruins")
+		-- Bajar de una meseta: en línea recta.
+		expect.equal(MapLayout.route("Ruins", "Main"), nil)
+		local toSanctuary = MapLayout.route("Main", "Sanctuary")
+		local fromSanctuary = MapLayout.route("Sanctuary", "Main")
+		expect.truthy(toSanctuary and fromSanctuary, "el puente debe usarse en ambos sentidos")
+		-- De una meseta al santuario se pasa por la isla principal (sin recursión infinita).
+		expect.equal(MapLayout.route("Ruins", "Sanctuary"), nil)
+		expect.truthy(MapLayout.route("Lookout", "Ruins") == nil)
+		for _, crystal in MapLayout.EssenceCrystals do
+			expect.truthy(MapLayout.isWalkable(crystal, 0), "cristal fuera del suelo")
+		end
+		-- Fuera de la isla no hay suelo.
+		expect.truthy(MapLayout.isWalkable(Vector3.new(0, 1, 80), 0), "el puente debe ser caminable")
+		expect.falsy(MapLayout.isWalkable(Vector3.new(25, 0, 80), 0), "vacío junto al puente marcado como suelo")
+		expect.falsy(MapLayout.isWalkable(Vector3.new(150, 0, 0), 0))
+	end)
+
+	it("todas las criaturas tienen plantilla y ataques que se pueden esquivar", function()
+		for id, def in EnemyConfig do
+			local model = ModelFactory.Builders[def.Rig](def)
+			local root = model:FindFirstChild("Root")
+			expect.truthy(root and model.PrimaryPart == root, id .. ": Root no es PrimaryPart")
+			expect.truthy(
+				root:FindFirstChild("Mover") and root:FindFirstChild("Facing"),
+				id .. ": falta la base física"
+			)
+			expect.truthy(def.AttackWindup >= 0.3, id .. ": anticipación demasiado corta para reaccionar")
+			expect.truthy(def.HitRange > 0 and def.AttackRange > 0, id .. ": alcances inválidos")
+			expect.truthy(def.XpReward >= 1, id .. ": sin experiencia")
+			local _, colliding = countParts(model)
+			expect.equal(colliding, 1, id .. ": solo Root debe colisionar")
+			model:Destroy()
+		end
 	end)
 end

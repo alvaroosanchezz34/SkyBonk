@@ -38,14 +38,22 @@ local STAT_ROWS = {
 	{ Key = "Cooldown", Label = "Enfriamiento", Format = "%.2f s" },
 	{ Key = "Range", Label = "Alcance", Format = "%.1f" },
 	{ Key = "Projectiles", Label = "Hojas", Format = "%d" },
+	{ Key = "Chain", Label = "Saltos de rayo", Format = "%d" },
+	{ Key = "CritPct", Label = "Crítico", Format = "%.0f %%" },
 	{ Key = "MoveSpeed", Label = "Velocidad", Format = "%.1f" },
 	{ Key = "DamageReductionPct", Label = "Reducción daño", Format = "%.0f %%" },
+	{ Key = "Regen", Label = "Regeneración", Format = "%.0f/s" },
+	{ Key = "Magnet", Label = "Imán", Format = "%.0f" },
 	{ Key = "XpBonusPct", Label = "Bonus XP", Format = "+%.0f %%" },
 	{ Key = "Luck", Label = "Suerte", Format = "%d" },
 }
 
 local function tween(instance: Instance, time: number, goal: { [string]: any }, style: Enum.EasingStyle?)
-	local t = TweenService:Create(instance, TweenInfo.new(time, style or Enum.EasingStyle.Quad, Enum.EasingDirection.Out), goal)
+	local t = TweenService:Create(
+		instance,
+		TweenInfo.new(time, style or Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+		goal
+	)
 	t:Play()
 	return t
 end
@@ -79,6 +87,7 @@ local function buildTopPanel()
 		TextColor3 = C.Gold,
 		Parent = badge,
 	})
+	refs.LevelScale = New("UIScale", { Parent = badge })
 	refs.Level = Theme.Label({
 		Size = UDim2.new(1, 0, 0, 34),
 		Position = UDim2.fromOffset(0, 21),
@@ -130,7 +139,7 @@ local function buildLeftColumn()
 	refs.LeftColumn = New("Frame", {
 		Name = "LeftColumn",
 		Position = UDim2.fromOffset(12, 8),
-		Size = UDim2.fromOffset(250, 300),
+		Size = UDim2.fromOffset(250, 380),
 		BackgroundTransparency = 1,
 		Parent = gui,
 	}, {
@@ -330,6 +339,15 @@ local function applySnapshot(data: Types.HudSnapshot)
 end
 
 local function showLevelBanner(level: number)
+	-- Destello de la barra de XP y del distintivo de nivel.
+	local fill = refs.XpFill
+	fill.BackgroundColor3 = Color3.new(1, 1, 1)
+	tween(fill, 0.35, { BackgroundColor3 = C.Xp })
+	local badgeScale = refs.LevelScale
+	if badgeScale then
+		badgeScale.Scale = 1.35
+		tween(badgeScale, 0.3, { Scale = 1 }, Enum.EasingStyle.Back)
+	end
 	local banner = refs.Banner
 	banner.Text = "¡NIVEL " .. level .. "!"
 	banner.TextTransparency = 0

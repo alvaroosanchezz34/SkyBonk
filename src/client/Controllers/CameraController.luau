@@ -36,13 +36,23 @@ local function applyZoom()
 	end
 end
 
-local function shake()
+local shakeStrength = 0
+local shakeDuration = 1
+
+-- Sacudida breve: `strength` en studs y `duration` en segundos (por defecto, la de recibir daño).
+local function shake(strength: number?, duration: number?)
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if humanoid == nil then
 		return
 	end
-	shakeUntil = os.clock() + GameConfig.Effects.CameraShakeTime
+	local newStrength = strength or GameConfig.Effects.CameraShakeStrength
+	local newDuration = duration or GameConfig.Effects.CameraShakeTime
+	if os.clock() >= shakeUntil or newStrength >= shakeStrength then
+		shakeStrength = newStrength
+		shakeDuration = newDuration
+		shakeUntil = os.clock() + newDuration
+	end
 	if shakeConnection then
 		return
 	end
@@ -56,13 +66,17 @@ local function shake()
 			end
 			return
 		end
-		local strength = GameConfig.Effects.CameraShakeStrength * (remaining / GameConfig.Effects.CameraShakeTime)
+		local strength = shakeStrength * (remaining / shakeDuration)
 		humanoid.CameraOffset = Vector3.new(
 			(math.random() - 0.5) * strength,
 			(math.random() - 0.5) * strength,
 			(math.random() - 0.5) * strength
 		)
 	end)
+end
+
+CameraController.Shake = function(strength: number, duration: number)
+	shake(strength, duration)
 end
 
 function CameraController.Init(_controllers) end
@@ -75,7 +89,9 @@ function CameraController.Start()
 	if player.Character then
 		applyZoom()
 	end
-	Net.PlayerDamaged.OnClientEvent:Connect(shake)
+	Net.PlayerDamaged.OnClientEvent:Connect(function()
+		shake()
+	end)
 end
 
 return CameraController

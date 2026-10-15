@@ -1,17 +1,22 @@
 --[[
 	CombatEffectsController
-	Presentación local de todo lo que calcula el servidor. Nada de lo que
-	ocurre aquí afecta al resultado de la partida.
+	Presentación local de lo que calcula el servidor. Nada de lo que ocurre
+	aquí afecta al resultado de la partida.
 
-	  • Hojas de la Espada del Vendaval (proyectil visual con estela).
-	  • Números de daño, destello de impacto y chispas.
-	  • Explosión al morir un enemigo.
-	  • Gemas que vuelan hacia el jugador al recogerlas.
-	  • Aura y anillo al subir de nivel; resalte rojo al recibir daño.
-	  • Animación de rebote de los slimes, barras de vida y giro de las gemas.
+	  • Espada del Vendaval: tajo (animación de Roblox "R15 Sword Slash") con
+	    estela; la velocidad del tajo sigue al enfriamiento real sin pasar de
+	    MaxSlashSpeed. Las hojas salen al final de la anticipación y llegan a su
+	    objetivo cuando el servidor aplica el impacto (CombatHits).
+	  • Filo de Tormenta: rayos entre los objetivos encadenados.
+	  • Impactos confirmados: chispas, números de daño (críticos destacados),
+	    sonido y reacción del enemigo (EnemyVisualsController).
+	  • Gemas: aparición con salto, flotación, vuelo hacia el jugador mientras
+	    el servidor las atrae, y destello al recogerlas.
+	  • Subida de nivel, rotura de Cristales de Esencia y daño recibido.
+	  • La espada brilla más con cada hoja extra y chispea con Filo de Tormenta.
 
-	Todo se anima desde un único RenderStepped y los objetos temporales
-	(hojas y números de daño) se reutilizan mediante pools.
+	Todo se anima desde un único RenderStepped; hojas, rayos y números de daño
+	se reutilizan mediante pools.
 ]]
 
 local Players = game:GetService("Players")
@@ -25,148 +30,190 @@ local GameConfig = require(Shared.Config.GameConfig)
 local WeaponConfig = require(Shared.Config.WeaponConfig)
 local Net = require(Shared.Net)
 local Sfx = require(script.Parent.Parent.Util.Sfx)
+local FxPool = require(script.Parent.Parent.Util.FxPool)
 
 local CombatEffectsController = {}
 
 local FX = GameConfig.Effects
+local EXP = GameConfig.Experience
 local player = Players.LocalPlayer
 
+local controllers
 local effectsFolder: Folder
-local anchorPart: Part -- se mueve a cada posición antes de emitir partículas
-local numbersAnchor: Part -- fijo en el origen; sostiene los adjuntos de los números
-local hitEmitter: ParticleEmitter
-local burstEmitter: ParticleEmitter
-local sparkleEmitter: ParticleEmitter
+local numbersAnchor: Part
 local damageHighlight: Highlight
 
--- Animaciones activas (una sola actualización por frame para todas).
-type Blade = { Part: BasePart, Trail: Trail, From: Vector3, To: Vector3, Start: number, Hit: any, Spin: number }
-type FlyingGem = { Part: BasePart, From: Vector3, Start: number }
-type EnemyVisual = {
-	Model: Model,
-	Weld: Weld?,
-	BaseC0: CFrame,
-	Mesh: SpecialMesh?,
-	Body: BasePart?,
-	BodyColor: Color3,
-	Fill: Frame?,
-	Phase: number,
-	FlashUntil: number,
-	Connection: RBXScriptConnection?,
+type Blade = {
+	Part: BasePart,
+	Trail: Trail,
+	From: Vector3,
+	Target: Model?,
+	Fallback: Vector3,
+	Start: number,
+	Duration: number,
+	Windup: number,
+	Spin: number,
+	Chain: { any },
 }
-type GemVisual = { Part: BasePart, Base: CFrame, Phase: number }
+type Bolt = { Parts: { BasePart }, Until: number }
+type GemVisual = { Part: BasePart, Base: CFrame, Phase: number, Born: number, Speed: number, Flying: boolean }
+type NumberEntry = { Attachment: Attachment, Gui: BillboardGui, Label: TextLabel, Busy: boolean }
 
 local blades: { Blade } = {}
-local flyingGems: { FlyingGem } = {}
-local enemyVisuals: { [Model]: EnemyVisual } = {}
-local gemVisuals: { [BasePart]: GemVisual } = {}
-
 local bladePool: { Blade } = {}
-local numberPool: { { Attachment: Attachment, Gui: BillboardGui, Label: TextLabel } } = {}
+local bolts: { Bolt } = {}
+local boltPool: { BasePart } = {}
+local gemVisuals: { [BasePart]: GemVisual } = {}
+local numberPool: { NumberEntry } = {}
+local numbersInUse = 0
 local gemComboUntil = 0
 local gemCombo = 0
 
-local function rootPosition(): Vector3?
-	local character = player.Character
-	local root = character and character:FindFirstChild("HumanoidRootPart")
-	return root and (root :: BasePart).Position
+-- Animación del tajo del jugador.
+local slashAnimations: { Animation } = {}
+local slashTracks: { AnimationTrack } = {}
+local slashIndex = 0
+local swordTrail: Trail? = nil
+local swordTrailUntil = 0
+local swordGlow = 0
+
+local function character(): Model?
+	return player.Character
 end
 
-local function makeEmitter(name: string, props: { [string]: any }): ParticleEmitter
-	local emitter = Instance.new("ParticleEmitter")
-	emitter.Name = name
-	emitter.Enabled = false
-	emitter.LightEmission = 0.8
-	emitter.LockedToPart = false
-	for key, value in props do
-		(emitter :: any)[key] = value
-	end
-	emitter.Parent = anchorPart
-	return emitter
+local function rootPart(): BasePart?
+	local c = character()
+	return c and c:FindFirstChild("HumanoidRootPart") :: BasePart?
 end
 
-local function emitAt(emitter: ParticleEmitter, position: Vector3, count: number, color: Color3?)
-	anchorPart.CFrame = CFrame.new(position)
-	if color then
-		emitter.Color = ColorSequence.new(color, Color3.new(1, 1, 1))
+local function modelPosition(model: Model?): Vector3?
+	if model == nil or model.Parent == nil then
+		return nil
 	end
-	emitter:Emit(count)
+	local root = model.PrimaryPart
+	return root and root.Position
 end
 
 ------------------------------------------------------------------ Números
-local function acquireNumber()
-	local entry = table.remove(numberPool)
-	if entry then
-		return entry
+local function acquireNumber(): NumberEntry?
+	if numbersInUse >= FX.MaxDamageNumbers then
+		return nil -- demasiados a la vez: se omite (no se tapa el combate)
 	end
-	local attachment = Instance.new("Attachment")
-	attachment.Parent = numbersAnchor
-	local gui = Instance.new("BillboardGui")
-	gui.Size = UDim2.fromOffset(90, 40)
-	gui.AlwaysOnTop = true
-	gui.LightInfluence = 0
-	gui.MaxDistance = 140
-	gui.Adornee = attachment
-	gui.Parent = attachment
-	local label = Instance.new("TextLabel")
-	label.Size = UDim2.fromScale(1, 1)
-	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.FredokaOne
-	label.TextSize = 26
-	label.TextStrokeTransparency = 0.2
-	label.Parent = gui
-	return { Attachment = attachment, Gui = gui, Label = label }
+	local entry = table.remove(numberPool)
+	if entry == nil then
+		local attachment = Instance.new("Attachment")
+		attachment.Parent = numbersAnchor
+		local gui = Instance.new("BillboardGui")
+		gui.Size = UDim2.fromOffset(110, 44)
+		gui.AlwaysOnTop = true
+		gui.LightInfluence = 0
+		gui.MaxDistance = 140
+		gui.Adornee = attachment
+		gui.Parent = attachment
+		local label = Instance.new("TextLabel")
+		label.Size = UDim2.fromScale(1, 1)
+		label.BackgroundTransparency = 1
+		label.Font = Enum.Font.FredokaOne
+		label.TextSize = 26
+		label.TextStrokeTransparency = 0.2
+		label.Parent = gui
+		entry = { Attachment = attachment, Gui = gui, Label = label, Busy = false }
+	end
+	numbersInUse += 1
+	return entry
 end
 
-local function showDamageNumber(position: Vector3, amount: number, killed: boolean)
+local function showDamageNumber(position: Vector3, amount: number, killed: boolean, crit: boolean, chain: boolean)
 	local entry = acquireNumber()
-	entry.Attachment.WorldPosition = position + Vector3.new((math.random() - 0.5) * 1.5, 2.5, 0)
-	entry.Label.Text = tostring(math.max(1, math.floor(amount + 0.5)))
-	entry.Label.TextColor3 = if killed then Color3.fromRGB(255, 214, 90) else Color3.fromRGB(255, 255, 255)
-	entry.Label.TextSize = if killed then 30 else 24
+	if entry == nil then
+		return
+	end
+	entry.Attachment.WorldPosition = position
+		+ Vector3.new((math.random() - 0.5) * 1.6, 2.6, (math.random() - 0.5) * 1.6)
+	local text = tostring(math.max(1, math.floor(amount + 0.5)))
+	entry.Label.Text = if crit then text .. "!" else text
+	entry.Label.TextColor3 = if crit
+		then Color3.fromRGB(255, 150, 60)
+		elseif killed then Color3.fromRGB(255, 214, 90)
+		elseif chain then Color3.fromRGB(170, 190, 255)
+		else Color3.fromRGB(255, 255, 255)
+	local size = if crit then 36 elseif killed then 29 elseif chain then 21 else 24
+	entry.Label.TextSize = size * 0.6
 	entry.Label.TextTransparency = 0
 	entry.Label.TextStrokeTransparency = 0.2
 	entry.Gui.StudsOffset = Vector3.zero
 	entry.Gui.Enabled = true
-	local info = TweenInfo.new(FX.DamageNumberLifetime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	TweenService:Create(entry.Gui, info, { StudsOffset = Vector3.new(0, 2.2, 0) }):Play()
-	TweenService:Create(entry.Label, info, { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
-	task.delay(FX.DamageNumberLifetime, function()
+	local life = FX.DamageNumberLifetime * (if crit then 1.3 else 1)
+	TweenService
+		:Create(entry.Label, TweenInfo.new(0.12, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { TextSize = size })
+		:Play()
+	local info = TweenInfo.new(life, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	TweenService:Create(entry.Gui, info, { StudsOffset = Vector3.new(0, 2.4, 0) }):Play()
+	TweenService:Create(
+		entry.Label,
+		TweenInfo.new(life * 0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In, 0, false, life * 0.5),
+		{
+			TextTransparency = 1,
+			TextStrokeTransparency = 1,
+		}
+	):Play()
+	task.delay(life, function()
 		entry.Gui.Enabled = false
+		numbersInUse -= 1
 		table.insert(numberPool, entry)
 	end)
 end
 
 ------------------------------------------------------------------- Hojas
-local function acquireBlade(color: Color3): Blade
+local function acquireBlade(color: Color3, scale: number): Blade
 	local blade = table.remove(bladePool)
 	if blade == nil then
 		local part = Instance.new("Part")
 		part.Name = "GaleBlade"
-		part.Size = Vector3.new(0.25, 0.25, 2.8)
 		part.Material = Enum.Material.Neon
 		part.Anchored = true
 		part.CanCollide = false
 		part.CanQuery = false
 		part.CanTouch = false
 		part.CastShadow = false
+		local mesh = Instance.new("SpecialMesh")
+		mesh.MeshType = Enum.MeshType.Sphere
+		mesh.Parent = part
 		local a0 = Instance.new("Attachment")
-		a0.Position = Vector3.new(0, 0, -1.3)
+		a0.Name = "A0"
 		a0.Parent = part
 		local a1 = Instance.new("Attachment")
-		a1.Position = Vector3.new(0, 0, 1.3)
+		a1.Name = "A1"
 		a1.Parent = part
 		local trail = Instance.new("Trail")
 		trail.Attachment0 = a0
 		trail.Attachment1 = a1
-		trail.Lifetime = 0.16
+		trail.Lifetime = 0.18
 		trail.LightEmission = 1
 		trail.FaceCamera = true
-		trail.Transparency = NumberSequence.new(0.2, 1)
+		trail.Transparency = NumberSequence.new(0.1, 1)
+		trail.WidthScale = NumberSequence.new(1, 0.2)
 		trail.Parent = part
-		blade = { Part = part, Trail = trail, From = Vector3.zero, To = Vector3.zero, Start = 0, Hit = nil, Spin = 0 }
+		blade = {
+			Part = part,
+			Trail = trail,
+			From = Vector3.zero,
+			Target = nil,
+			Fallback = Vector3.zero,
+			Start = 0,
+			Duration = 0.2,
+			Windup = 0.1,
+			Spin = 0,
+			Chain = {},
+		}
 	end
 	local b = blade :: Blade
+	-- Hoja en forma de media luna: ancha y plana (se lee como un corte de viento).
+	b.Part.Size = Vector3.new(2.6 * scale, 0.2, 0.9 * scale)
+	local a0 = b.Part:FindFirstChild("A0") :: Attachment
+	local a1 = b.Part:FindFirstChild("A1") :: Attachment
+	a0.Position = Vector3.new(-1.2 * scale, 0, 0)
+	a1.Position = Vector3.new(1.2 * scale, 0, 0)
 	b.Part.Color = color
 	b.Trail.Color = ColorSequence.new(color, Color3.new(1, 1, 1))
 	return b
@@ -175,112 +222,221 @@ end
 local function releaseBlade(blade: Blade)
 	blade.Trail.Enabled = false
 	blade.Part.Parent = nil
-	blade.Hit = nil
+	blade.Target = nil
+	blade.Chain = {}
 	table.insert(bladePool, blade)
 end
 
-local function onBladeArrived(blade: Blade)
-	local hit = blade.Hit
-	if hit == nil then
-		return
+-- Rayo quebrado entre dos puntos (Filo de Tormenta).
+local function drawBolt(from: Vector3, to: Vector3)
+	local parts: { BasePart } = {}
+	local segments = 4
+	local previous = from
+	for i = 1, segments do
+		local t = i / segments
+		local point = from:Lerp(to, t)
+		if i < segments then
+			point += Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5) * 1.6
+		end
+		local part = table.remove(boltPool)
+		if part == nil then
+			local created = Instance.new("Part")
+			created.Name = "Bolt"
+			created.Material = Enum.Material.Neon
+			created.Color = Color3.fromRGB(190, 200, 255)
+			created.Anchored = true
+			created.CanCollide = false
+			created.CanQuery = false
+			created.CanTouch = false
+			created.CastShadow = false
+			part = created
+		end
+		local p = part :: BasePart
+		local length = (point - previous).Magnitude
+		p.Size = Vector3.new(0.18, 0.18, length)
+		p.CFrame = CFrame.lookAt((previous + point) / 2, point)
+		p.Transparency = 0
+		p.Parent = effectsFolder
+		table.insert(parts, p)
+		previous = point
 	end
-	emitAt(hitEmitter, blade.To, 6)
-	showDamageNumber(blade.To, hit.Damage, hit.Killed)
-	local visual = hit.Model and enemyVisuals[hit.Model]
-	if visual and visual.Body then
-		visual.FlashUntil = os.clock() + FX.HitFlashTime
-		visual.Body.Color = Color3.new(1, 1, 1)
+	table.insert(bolts, { Parts = parts, Until = os.clock() + 0.12 })
+	FxPool.Emit("Spark", to, 6)
+end
+
+-- La hoja ha llegado: chispa y rayos (el daño y el número llegan con CombatHits).
+local function onBladeArrived(blade: Blade, position: Vector3)
+	FxPool.Emit("HitSparks", position, 5)
+	local previous = position
+	for _, link in blade.Chain do
+		local delay = math.max(0, link.Delay - blade.Duration - blade.Windup)
+		local fromPoint = previous
+		task.delay(delay, function()
+			local target = modelPosition(link.Model) or link.Position
+			drawBolt(fromPoint + Vector3.new(0, 0.6, 0), target + Vector3.new(0, 0.6, 0))
+			Sfx.PlayAt("Chain", target, 1.1)
+		end)
+		previous = modelPosition(link.Model) or link.Position
 	end
 end
 
+------------------------------------------------------------ Tajo jugador
+local function swordOf(c: Model?): Model?
+	return c and c:FindFirstChild("GaleSword") :: Model?
+end
+
+local function ensureSwordTrail(): Trail?
+	local sword = swordOf(character())
+	local blade = sword and sword:FindFirstChild("Blade")
+	if blade == nil then
+		return nil
+	end
+	local existing = blade:FindFirstChild("SlashTrail") :: Trail?
+	if existing then
+		return existing
+	end
+	local trail = Instance.new("Trail")
+	trail.Name = "SlashTrail"
+	trail.Attachment0 = blade:FindFirstChild("TrailBase") :: Attachment
+	trail.Attachment1 = blade:FindFirstChild("TrailTip") :: Attachment
+	trail.Lifetime = 0.16
+	trail.LightEmission = 1
+	trail.Color = ColorSequence.new(Color3.fromRGB(150, 240, 255), Color3.new(1, 1, 1))
+	trail.Transparency = NumberSequence.new(0.15, 1)
+	trail.Enabled = false
+	trail.Parent = blade
+	return trail
+end
+
+local function loadSlashTracks()
+	table.clear(slashTracks)
+	local c = character()
+	local humanoid = c and c:FindFirstChildOfClass("Humanoid")
+	local animator = humanoid and humanoid:FindFirstChildOfClass("Animator")
+	if humanoid == nil or animator == nil or humanoid.RigType ~= Enum.HumanoidRigType.R15 then
+		return -- R6: la espada y las hojas siguen funcionando, sin animación de brazo
+	end
+	for _, anim in slashAnimations do
+		local ok, t = pcall(animator.LoadAnimation, animator, anim)
+		if ok and t then
+			t.Priority = Enum.AnimationPriority.Action
+			t.Looped = false
+			table.insert(slashTracks, t)
+		end
+	end
+end
+
+local function playSlash(cooldown: number)
+	if #slashTracks == 0 then
+		loadSlashTracks()
+	end
+	slashIndex = slashIndex % math.max(1, #slashTracks) + 1
+	local t = slashTracks[slashIndex]
+	if t then
+		-- El tajo ocupa como mucho el 85 % del enfriamiento y nunca va más rápido de MaxSlashSpeed.
+		local length = if t.Length > 0 then t.Length else 0.6
+		local speed = math.clamp(length / math.max(0.15, cooldown * 0.85), 1, FX.MaxSlashSpeed)
+		t:Play(0.05, 1, speed)
+	end
+	swordTrail = swordTrail or ensureSwordTrail()
+	if swordTrail and swordTrail.Parent then
+		swordTrail.Enabled = true
+		swordTrailUntil = os.clock() + 0.28
+	else
+		swordTrail = nil
+	end
+end
+
+local function swordTip(): Vector3?
+	local sword = swordOf(character())
+	local blade = sword and sword:FindFirstChild("Blade") :: BasePart?
+	return blade and (blade.CFrame * CFrame.new(0, 0, -1.2)).Position
+end
+
 local function onCombatFx(attack)
-	if type(attack) ~= "table" or type(attack.Hits) ~= "table" or typeof(attack.Origin) ~= "Vector3" then
+	if type(attack) ~= "table" or type(attack.Shots) ~= "table" or typeof(attack.Origin) ~= "Vector3" then
 		return
 	end
 	local weapon = WeaponConfig[attack.WeaponId]
 	local color = weapon and weapon.Color or Color3.new(1, 1, 1)
-	local origin = (rootPosition() or attack.Origin) + Vector3.new(0, 1.2, 0)
-	Sfx.Play("Attack", 0.95 + math.random() * 0.15)
-	for index, hit in attack.Hits do
-		if typeof(hit.Position) ~= "Vector3" then
+	local windup = if type(attack.Windup) == "number" then attack.Windup else 0.1
+	local cooldown = if type(attack.Cooldown) == "number" then attack.Cooldown else 1
+	playSlash(cooldown)
+	task.delay(windup * 0.6, function()
+		Sfx.Play("Attack", 1 + (#attack.Shots - 1) * 0.04)
+	end)
+	local now = os.clock()
+	local scale = 1 + swordGlow * 0.08
+	for index, shot in attack.Shots do
+		if typeof(shot.Position) ~= "Vector3" or type(shot.Delay) ~= "number" then
 			continue
 		end
-		local blade = acquireBlade(color)
+		local blade = acquireBlade(color, scale)
+		local origin = (rootPart() and (rootPart() :: BasePart).Position or attack.Origin) + Vector3.new(0, 1.4, 0)
 		blade.From = origin
-		blade.To = hit.Position + Vector3.new(0, 0.8, 0)
-		blade.Start = os.clock() + (index - 1) * 0.04
-		blade.Hit = hit
+		blade.Target = if typeof(shot.Model) == "Instance" then shot.Model else nil
+		blade.Fallback = shot.Position
+		blade.Start = now + windup + (index - 1) * 0.015
+		blade.Duration = math.max(0.06, shot.Delay - windup)
 		blade.Spin = math.random() * math.pi
-		blade.Part.CFrame = CFrame.lookAt(blade.From, blade.To)
+		blade.Chain = if type(shot.Chain) == "table" then shot.Chain else {}
+		blade.Windup = windup
+		blade.Part.CFrame = CFrame.lookAt(origin, shot.Position)
 		blade.Part.Parent = effectsFolder
 		blade.Trail:Clear()
-		blade.Trail.Enabled = true
+		blade.Trail.Enabled = false
 		table.insert(blades, blade)
 	end
-	task.delay(FX.BladeTravelTime, function()
-		Sfx.Play("Hit", 0.9 + math.random() * 0.2)
-	end)
 end
 
-------------------------------------------------------------- Enemigos
-local function trackEnemy(model: Instance)
-	if not model:IsA("Model") or enemyVisuals[model] then
+local function onCombatHits(payload)
+	if type(payload) ~= "table" or type(payload.Hits) ~= "table" then
 		return
 	end
-	local body = model:FindFirstChild("Body") :: BasePart?
-	local weld = body and body:FindFirstChild("BodyWeld") :: Weld?
-	local mesh = body and body:FindFirstChild("BodyMesh") :: SpecialMesh?
-	local root = model:FindFirstChild("Root")
-	local bar = root and root:FindFirstChild("HealthBar")
-	local fill = bar and bar:FindFirstChild("Back") and bar.Back:FindFirstChild("Fill") :: Frame?
-
-	local visual: EnemyVisual = {
-		Model = model,
-		Weld = weld,
-		BaseC0 = weld and weld.C0 or CFrame.new(),
-		Mesh = mesh,
-		Body = body,
-		BodyColor = body and body.Color or Color3.new(1, 1, 1),
-		Fill = fill,
-		Phase = math.random() * math.pi * 2,
-		FlashUntil = 0,
-		Connection = nil,
-	}
-	local function updateBar()
-		local health = model:GetAttribute("Health")
-		local maxHealth = model:GetAttribute("MaxHealth")
-		if fill and type(health) == "number" and type(maxHealth) == "number" and maxHealth > 0 then
-			fill.Size = UDim2.fromScale(math.clamp(health / maxHealth, 0, 1), 1)
+	local anyCrit, anyKill = false, false
+	for _, hit in payload.Hits do
+		if typeof(hit.Position) ~= "Vector3" or type(hit.Damage) ~= "number" then
+			continue
+		end
+		local model = if typeof(hit.Model) == "Instance" then hit.Model else nil
+		local position = modelPosition(model) or hit.Position
+		showDamageNumber(position, hit.Damage, hit.Killed == true, hit.Crit == true, hit.Chain == true)
+		if hit.Crit then
+			anyCrit = true
+			FxPool.Emit("CritSparks", position + Vector3.new(0, 1, 0), 10)
+		end
+		if hit.Killed then
+			anyKill = true
+		end
+		if model then
+			controllers.EnemyVisualsController.OnHit(model, hit.Crit == true)
 		end
 	end
-	visual.Connection = model:GetAttributeChangedSignal("Health"):Connect(updateBar)
-	updateBar()
-	enemyVisuals[model] = visual
-end
-
-local function untrackEnemy(model: Instance)
-	local visual = enemyVisuals[model :: Model]
-	if visual then
-		if visual.Connection then
-			visual.Connection:Disconnect()
-		end
-		enemyVisuals[model :: Model] = nil
+	if anyCrit then
+		Sfx.Play("Crit", 1)
+	elseif anyKill then
+		Sfx.Play("HitHeavy", 0.95 + math.random() * 0.1)
+	else
+		Sfx.Play("Hit", 1)
 	end
-end
-
-local function onEnemyDied(info)
-	if type(info) ~= "table" or typeof(info.Position) ~= "Vector3" then
-		return
-	end
-	local color = if typeof(info.Color) == "Color3" then info.Color else Color3.fromRGB(150, 80, 230)
-	emitAt(burstEmitter, info.Position, FX.DeathBurstParticles, color)
-	Sfx.Play("EnemyDeath", 0.9 + math.random() * 0.25)
 end
 
 ------------------------------------------------------------------- Gemas
 local function trackGem(part: Instance)
 	if part:IsA("BasePart") and not gemVisuals[part] then
-		gemVisuals[part] = { Part = part, Base = part.CFrame, Phase = math.random() * math.pi * 2 }
+		gemVisuals[part] = {
+			Part = part,
+			Base = part.CFrame,
+			Phase = math.random() * math.pi * 2,
+			Born = os.clock(),
+			Speed = EXP.AttractSpeed,
+			Flying = false,
+		}
+		if part.Name == "XpGemLucky" then
+			local sparkle = Instance.new("Sparkles")
+			sparkle.SparkleColor = Color3.fromRGB(255, 220, 120)
+			sparkle.Parent = part
+		end
 	end
 end
 
@@ -293,68 +449,75 @@ local function onGemCollected(info)
 		return
 	end
 	local now = os.clock()
-	gemCombo = if now < gemComboUntil then math.min(gemCombo + 1, 12) else 0
-	gemComboUntil = now + 0.6
-	Sfx.Play("GemPickup", 1 + gemCombo * 0.05)
-	for index, position in info.Positions do
-		if typeof(position) ~= "Vector3" or index > 12 then
-			continue
-		end
-		local part = Instance.new("Part")
-		part.Size = Vector3.new(0.6, 0.9, 0.6)
-		part.Material = Enum.Material.Neon
-		part.Color = Color3.fromRGB(80, 240, 255)
-		part.Anchored = true
-		part.CanCollide = false
-		part.CanQuery = false
-		part.CanTouch = false
-		part.CastShadow = false
-		part.CFrame = CFrame.new(position)
-		part.Parent = effectsFolder
-		table.insert(flyingGems, { Part = part, From = position, Start = now })
+	gemCombo = if now < gemComboUntil then math.min(gemCombo + 1, 14) else 0
+	gemComboUntil = now + 0.7
+	-- La escala sube con las recogidas seguidas: recompensa sonora sin saturar.
+	Sfx.Play("GemPickup", 1 + gemCombo * 0.045)
+	local root = rootPart()
+	if root then
+		FxPool.Emit("GemPop", root.Position + Vector3.new(0, 0.5, 0), math.min(4 + #info.Positions * 2, 14))
 	end
 end
 
--------------------------------------------------------------- Jugador
-local function onLevelUp()
-	local position = rootPosition()
-	Sfx.Play("LevelUp")
-	if position == nil then
+-------------------------------------------------------------- Mundo y jugador
+local function onWorldFx(event)
+	if type(event) ~= "table" or typeof(event.Position) ~= "Vector3" then
 		return
 	end
-	emitAt(sparkleEmitter, position, 40)
-	local ring = Instance.new("Part")
-	ring.Shape = Enum.PartType.Cylinder
-	ring.Size = Vector3.new(0.3, 4, 4)
-	ring.CFrame = CFrame.new(position - Vector3.new(0, 2.5, 0)) * CFrame.Angles(0, 0, math.pi / 2)
-	ring.Material = Enum.Material.Neon
-	ring.Color = Color3.fromRGB(255, 214, 90)
-	ring.Transparency = 0.2
-	ring.Anchored = true
-	ring.CanCollide = false
-	ring.CanQuery = false
-	ring.CanTouch = false
-	ring.CastShadow = false
-	ring.Parent = effectsFolder
-	TweenService:Create(ring, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Size = Vector3.new(0.3, 26, 26),
+	if event.Kind == "CrystalBreak" then
+		local gold = Color3.fromRGB(255, 196, 92)
+		FxPool.Emit("DeathBurst", event.Position + Vector3.new(0, 3, 0), 30, gold)
+		FxPool.Emit("Sparkles", event.Position + Vector3.new(0, 2, 0), 24)
+		FxPool.Ring(event.Position + Vector3.new(0, 0.3, 0), 2, 16, 0.5, gold, 0.2, 0.25)
+		Sfx.PlayAt("CrystalBreak", event.Position, 1, 120)
+	end
+end
+
+local function onLevelUp()
+	local root = rootPart()
+	Sfx.Play("LevelUp")
+	if root == nil then
+		return
+	end
+	local position = root.Position
+	FxPool.Emit("Sparkles", position, 46)
+	local ground = position - Vector3.new(0, 2.8, 0)
+	FxPool.Ring(ground, 4, 30, 0.6, Color3.fromRGB(255, 214, 90), 0.15, 0.3)
+	FxPool.Ring(ground, 2, 18, 0.45, Color3.fromRGB(140, 240, 255), 0.3, 0.2)
+	-- Columna de luz breve sobre el jugador.
+	local pillar = Instance.new("Part")
+	pillar.Name = "LevelPillar"
+	pillar.Shape = Enum.PartType.Cylinder
+	pillar.Size = Vector3.new(40, 5, 5)
+	pillar.CFrame = CFrame.new(ground + Vector3.new(0, 20, 0)) * CFrame.Angles(0, 0, math.pi / 2)
+	pillar.Material = Enum.Material.Neon
+	pillar.Color = Color3.fromRGB(255, 230, 150)
+	pillar.Transparency = 0.35
+	pillar.Anchored = true
+	pillar.CanCollide = false
+	pillar.CanQuery = false
+	pillar.CanTouch = false
+	pillar.CastShadow = false
+	pillar.Parent = effectsFolder
+	TweenService:Create(pillar, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Size = Vector3.new(40, 0.4, 0.4),
 		Transparency = 1,
 	}):Play()
-	task.delay(0.65, function()
-		ring:Destroy()
+	task.delay(0.55, function()
+		pillar:Destroy()
 	end)
 end
 
 local highlightToken = 0
 local function onPlayerDamaged()
-	Sfx.Play("PlayerHurt", 0.95 + math.random() * 0.1)
-	local character = player.Character
-	if character == nil then
+	Sfx.Play("PlayerHurt")
+	local c = character()
+	if c == nil then
 		return
 	end
 	highlightToken += 1
 	local token = highlightToken
-	damageHighlight.Adornee = character
+	damageHighlight.Adornee = c
 	damageHighlight.Enabled = true
 	task.delay(0.15, function()
 		if token == highlightToken then
@@ -363,116 +526,143 @@ local function onPlayerDamaged()
 	end)
 end
 
+local function onEnemyDied(info)
+	if type(info) ~= "table" or typeof(info.Position) ~= "Vector3" then
+		return
+	end
+	local color = if typeof(info.Color) == "Color3" then info.Color else Color3.fromRGB(150, 80, 230)
+	local model = if typeof(info.Model) == "Instance" then info.Model else nil
+	controllers.EnemyVisualsController.OnDied(model, info.Position, color, info.EnemyId)
+end
+
+-- Brillo de la espada según las mejoras (más hojas = más brillo; rayo = chispas).
+local function onHud(snapshot)
+	if type(snapshot) ~= "table" or type(snapshot.Stats) ~= "table" then
+		return
+	end
+	local projectiles = snapshot.Stats.Projectiles or 1
+	local chain = snapshot.Stats.Chain or 0
+	swordGlow = math.max(0, projectiles - 1) + chain
+	local sword = swordOf(character())
+	local edge = sword and sword:FindFirstChild("Edge") :: BasePart?
+	if edge then
+		edge.Size = Vector3.new(0.12 + 0.04 * swordGlow, 0.12 + 0.04 * swordGlow, 3.2)
+		edge.Color = if chain > 0 then Color3.fromRGB(180, 190, 255) else Color3.fromRGB(120, 235, 255)
+		local sparks = edge:FindFirstChild("StormSparks") :: ParticleEmitter?
+		if chain > 0 and sparks == nil then
+			local emitter = Instance.new("ParticleEmitter")
+			emitter.Name = "StormSparks"
+			emitter.Color = ColorSequence.new(Color3.fromRGB(200, 210, 255))
+			emitter.Size = NumberSequence.new(0.18, 0)
+			emitter.Lifetime = NumberRange.new(0.1, 0.2)
+			emitter.Speed = NumberRange.new(2, 5)
+			emitter.SpreadAngle = Vector2.new(180, 180)
+			emitter.LightEmission = 1
+			emitter.Parent = edge
+			sparks = emitter
+		end
+		if sparks then
+			sparks.Rate = chain * 10
+		end
+	end
+end
+
 --------------------------------------------------------- Bucle visual
-local function update()
+local function update(dt: number)
+	debug.profilebegin("SkyBonk.CombatFx")
 	local now = os.clock()
 
-	-- Hojas en vuelo (arco ligero + giro).
+	-- Hojas en vuelo: persiguen la posición actual del objetivo.
 	for index = #blades, 1, -1 do
 		local blade = blades[index]
-		local t = (now - blade.Start) / FX.BladeTravelTime
-		if t >= 1 then
-			table.remove(blades, index)
-			onBladeArrived(blade)
-			releaseBlade(blade)
-		elseif t >= 0 then
-			local position = blade.From:Lerp(blade.To, t) + Vector3.new(0, math.sin(t * math.pi) * 1.5, 0)
-			blade.Part.CFrame = CFrame.lookAt(position, blade.To) * CFrame.Angles(0, 0, blade.Spin + t * 8)
-		end
-	end
-
-	-- Gemas recogidas volando hacia el jugador.
-	local target = rootPosition()
-	for index = #flyingGems, 1, -1 do
-		local gem = flyingGems[index]
-		local t = (now - gem.Start) / FX.GemFlyTime
-		if t >= 1 or target == nil then
-			gem.Part:Destroy()
-			table.remove(flyingGems, index)
-		else
-			gem.Part.CFrame = CFrame.new(gem.From:Lerp(target :: Vector3, t * t)) * CFrame.Angles(0, t * 10, 0)
-			gem.Part.Size = Vector3.new(0.6, 0.9, 0.6) * (1 - t * 0.6)
-		end
-	end
-
-	-- Rebote de los slimes (solo visual, sobre la soldadura del cuerpo).
-	for model, visual in enemyVisuals do
-		if model.Parent == nil then
-			untrackEnemy(model)
+		local t = (now - blade.Start) / blade.Duration
+		if t < 0 then
+			-- Aún en la anticipación: la hoja espera en la punta de la espada.
+			local tip = swordTip()
+			if tip then
+				blade.From = tip
+			end
 			continue
 		end
-		local wave = math.sin(now * 7 + visual.Phase)
-		if visual.Weld then
-			visual.Weld.C0 = visual.BaseC0 * CFrame.new(0, math.abs(wave) * 0.45, 0)
-		end
-		if visual.Mesh then
-			local squash = wave * 0.08
-			visual.Mesh.Scale = Vector3.new(1 + squash, 1 - squash, 1 + squash)
-		end
-		if visual.Body and visual.FlashUntil > 0 and now >= visual.FlashUntil then
-			visual.FlashUntil = 0
-			visual.Body.Color = visual.BodyColor
+		local target = (modelPosition(blade.Target) or blade.Fallback) + Vector3.new(0, 0.8, 0)
+		if t >= 1 then
+			table.remove(blades, index)
+			onBladeArrived(blade, target)
+			releaseBlade(blade)
+		else
+			if not blade.Trail.Enabled then
+				blade.Trail.Enabled = true
+			end
+			local eased = 1 - (1 - t) * (1 - t)
+			local position = blade.From:Lerp(target, eased) + Vector3.new(0, math.sin(t * math.pi) * 1.2, 0)
+			blade.Part.CFrame = CFrame.lookAt(position, target)
+				* CFrame.Angles(0, 0, blade.Spin + t * 6)
+				* CFrame.Angles(0, math.pi / 2, 0)
 		end
 	end
 
-	-- Gemas en el suelo: giro y flotación.
+	for index = #bolts, 1, -1 do
+		local bolt = bolts[index]
+		if now >= bolt.Until then
+			for _, part in bolt.Parts do
+				part.Parent = nil
+				table.insert(boltPool, part)
+			end
+			table.remove(bolts, index)
+		end
+	end
+
+	if swordTrail and now >= swordTrailUntil then
+		swordTrail.Enabled = false
+	end
+
+	-- Gemas: aparición con salto, flotación y vuelo hacia el jugador cuando las atrae.
+	local root = rootPart()
 	for part, visual in gemVisuals do
 		if part.Parent == nil then
 			gemVisuals[part] = nil
 			continue
 		end
+		if part:GetAttribute("Attracting") and root then
+			visual.Flying = true
+			visual.Speed += EXP.AttractAcceleration * dt
+			local target = root.Position
+			local offset = target - visual.Base.Position
+			local distance = offset.Magnitude
+			local step = math.min(distance, visual.Speed * dt)
+			if distance > 1e-3 then
+				visual.Base = CFrame.new(visual.Base.Position + offset / distance * step)
+			end
+			part.CFrame = visual.Base * CFrame.Angles(0, now * 12, 0)
+			continue
+		end
+		local age = now - visual.Born
+		local pop = if age < 0.3 then math.sin(age / 0.3 * math.pi) * 1.4 else 0
 		part.CFrame = visual.Base
-			* CFrame.new(0, math.sin(now * 3 + visual.Phase) * 0.25, 0)
+			* CFrame.new(0, pop + math.sin(now * 3 + visual.Phase) * 0.25, 0)
 			* CFrame.Angles(0, now * 2.5, 0)
 	end
+	debug.profileend()
 end
 
-function CombatEffectsController.Init(_controllers) end
+function CombatEffectsController.Init(allControllers)
+	controllers = allControllers
+end
 
 function CombatEffectsController.Start()
-	effectsFolder = Instance.new("Folder")
-	effectsFolder.Name = "ClientEffects"
-	effectsFolder.Parent = Workspace
+	FxPool.Start()
+	effectsFolder = FxPool.Folder()
 
-	anchorPart = Instance.new("Part")
-	anchorPart.Name = "FxAnchor"
-	anchorPart.Size = Vector3.new(0.2, 0.2, 0.2)
-	anchorPart.Transparency = 1
-	anchorPart.Anchored = true
-	anchorPart.CanCollide = false
-	anchorPart.CanQuery = false
-	anchorPart.CanTouch = false
-	anchorPart.Parent = effectsFolder
-	numbersAnchor = anchorPart:Clone()
+	numbersAnchor = Instance.new("Part")
 	numbersAnchor.Name = "NumbersAnchor"
+	numbersAnchor.Size = Vector3.new(0.2, 0.2, 0.2)
+	numbersAnchor.Transparency = 1
+	numbersAnchor.Anchored = true
+	numbersAnchor.CanCollide = false
+	numbersAnchor.CanQuery = false
+	numbersAnchor.CanTouch = false
 	numbersAnchor.CFrame = CFrame.new()
 	numbersAnchor.Parent = effectsFolder
-
-	hitEmitter = makeEmitter("HitSparks", {
-		Color = ColorSequence.new(Color3.fromRGB(180, 250, 255), Color3.new(1, 1, 1)),
-		Size = NumberSequence.new(0.6, 0),
-		Lifetime = NumberRange.new(0.2, 0.35),
-		Speed = NumberRange.new(12, 20),
-		SpreadAngle = Vector2.new(180, 180),
-		Drag = 6,
-	})
-	burstEmitter = makeEmitter("DeathBurst", {
-		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1.1), NumberSequenceKeypoint.new(1, 0) }),
-		Lifetime = NumberRange.new(0.35, 0.6),
-		Speed = NumberRange.new(10, 18),
-		SpreadAngle = Vector2.new(180, 180),
-		Acceleration = Vector3.new(0, -30, 0),
-		Drag = 3,
-	})
-	sparkleEmitter = makeEmitter("LevelSparkles", {
-		Color = ColorSequence.new(Color3.fromRGB(255, 220, 110), Color3.fromRGB(120, 240, 255)),
-		Size = NumberSequence.new(0.8, 0),
-		Lifetime = NumberRange.new(0.6, 1),
-		Speed = NumberRange.new(6, 14),
-		SpreadAngle = Vector2.new(60, 60),
-		EmissionDirection = Enum.NormalId.Top,
-		Acceleration = Vector3.new(0, 8, 0),
-	})
 
 	damageHighlight = Instance.new("Highlight")
 	damageHighlight.Name = "DamageHighlight"
@@ -483,14 +673,27 @@ function CombatEffectsController.Start()
 	damageHighlight.Enabled = false
 	damageHighlight.Parent = effectsFolder
 
-	Sfx.Preload()
-
-	local enemies = Workspace:WaitForChild("ActiveEnemies")
-	enemies.ChildAdded:Connect(trackEnemy)
-	enemies.ChildRemoved:Connect(untrackEnemy)
-	for _, child in enemies:GetChildren() do
-		trackEnemy(child)
+	-- Solo el tajo (0,5 s): la estocada de Roblox dura 1,5 s y no cabe en el enfriamiento.
+	for _, id in { GameConfig.Animations.PlayerSlashR15 } do
+		local anim = Instance.new("Animation")
+		anim.AnimationId = id
+		table.insert(slashAnimations, anim)
 	end
+	player.CharacterAdded:Connect(function()
+		table.clear(slashTracks)
+		swordTrail = nil
+	end)
+
+	task.spawn(function()
+		local list: { Instance } = Sfx.Preload()
+		for _, anim in slashAnimations do
+			table.insert(list, anim)
+		end
+		pcall(function()
+			game:GetService("ContentProvider"):PreloadAsync(list)
+		end)
+	end)
+
 	local orbs = Workspace:WaitForChild("ExperienceOrbs")
 	orbs.ChildAdded:Connect(trackGem)
 	orbs.ChildRemoved:Connect(untrackGem)
@@ -499,10 +702,13 @@ function CombatEffectsController.Start()
 	end
 
 	Net.CombatFx.OnClientEvent:Connect(onCombatFx)
+	Net.CombatHits.OnClientEvent:Connect(onCombatHits)
 	Net.EnemyDied.OnClientEvent:Connect(onEnemyDied)
 	Net.GemCollected.OnClientEvent:Connect(onGemCollected)
 	Net.LevelUp.OnClientEvent:Connect(onLevelUp)
 	Net.PlayerDamaged.OnClientEvent:Connect(onPlayerDamaged)
+	Net.WorldFx.OnClientEvent:Connect(onWorldFx)
+	Net.HudUpdate.OnClientEvent:Connect(onHud)
 
 	RunService.RenderStepped:Connect(update)
 end

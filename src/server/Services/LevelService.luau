@@ -15,6 +15,12 @@ type Run = ServerTypes.Run
 local LevelService = {}
 
 local services: ServerTypes.Services
+-- Instante (tiempo de partida) de cada subida de nivel: lo usa el informe de depuración.
+local levelTimes: { [Run]: { string } } = setmetatable({}, { __mode = "k" }) :: any
+
+function LevelService.GetLevelTimes(run: Run): { string }
+	return levelTimes[run] or {}
+end
 
 function LevelService.Init(allServices: ServerTypes.Services)
 	services = allServices
@@ -30,6 +36,9 @@ function LevelService.GrantExperience(run: Run, baseAmount: number)
 	local gained = RunState.grantXp(run.State, baseAmount)
 	services.MatchService.MarkHudDirty(run)
 	if gained > 0 then
+		local times = levelTimes[run] or {}
+		levelTimes[run] = times
+		table.insert(times, string.format("Nv%d@%.0fs", run.State.Progress.Level, run.State.Elapsed))
 		Net.LevelUp:FireClient(run.Player, {
 			Level = run.State.Progress.Level,
 			Gained = gained,
