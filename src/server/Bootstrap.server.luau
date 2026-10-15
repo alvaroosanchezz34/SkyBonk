@@ -43,7 +43,8 @@ if existingMap == nil or existingMap:FindFirstChild("Ground") == nil then
 	MapBuilder.build(workspace)
 end
 MapBuilder.applyLighting()
-workspace.FallenPartsDestroyHeight = GameConfig.Map.KillY - 400
+-- Nota: Workspace.FallenPartsDestroyHeight no se puede escribir desde scripts;
+-- se fija en default.project.json (-445), por debajo de GameConfig.Map.KillY.
 
 PhysicsService:RegisterCollisionGroup("Players")
 PhysicsService:RegisterCollisionGroup("Enemies")
