@@ -26,6 +26,7 @@ local REQUIRED_CLIENT_MODULES = {
 	{ "UI", "Theme" },
 	{ "Util", "Sfx" },
 	{ "Util", "FxPool" },
+	{ "Util", "AuraSystem" },
 	{ "Controllers", "InputController" },
 	{ "Controllers", "CameraController" },
 	{ "Controllers", "HUDController" },
@@ -35,6 +36,8 @@ local REQUIRED_CLIENT_MODULES = {
 	{ "Controllers", "EnemyVisualsController" },
 	{ "Controllers", "MusicController" },
 	{ "Controllers", "DebugController" },
+	{ "Controllers", "CharacterFxController" },
+	{ "Controllers", "AmbientController" },
 }
 for _, path in REQUIRED_CLIENT_MODULES do
 	waitFor(root, path)
@@ -51,6 +54,7 @@ for _, path in
 		{ "Config", "WeaponConfig" },
 		{ "Config", "EnemyConfig" },
 		{ "Config", "UpgradeConfig" },
+		{ "Config", "VisualConfig" },
 	}
 do
 	waitFor(Shared, path)
@@ -70,6 +74,8 @@ local controllers = {
 	EnemyVisualsController = require(ControllersFolder.EnemyVisualsController),
 	MusicController = require(ControllersFolder.MusicController),
 	DebugController = require(ControllersFolder.DebugController),
+	CharacterFxController = require(ControllersFolder.CharacterFxController),
+	AmbientController = require(ControllersFolder.AmbientController),
 }
 local START_ORDER = {
 	"InputController",
@@ -81,6 +87,8 @@ local START_ORDER = {
 	"EnemyVisualsController",
 	"MusicController",
 	"DebugController",
+	"CharacterFxController",
+	"AmbientController",
 }
 
 Theme.StartAutoScale()

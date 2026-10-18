@@ -31,6 +31,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local MapLayout = require(script.Parent.MapLayout)
+local VisualConfig = require(ReplicatedStorage.Shared.Config.VisualConfig)
 
 local MapBuilder = {}
 
@@ -243,13 +244,15 @@ local KIT: { [string]: KitSpec } = {
 	},
 	Spire = {
 		Asset = "Rock_",
-		Scale = { 1.5, 2.1 },
+		Scale = { 1.25, 1.75 },
 		Collider = { Kind = "Box", Radius = 0.72, Height = 0.9 },
 		Fallback = "Rock",
 	},
 }
 
 local kitFolder: Instance? = nil
+-- Si se fija, las rocas del kit usan este color (Jardín Corrompido).
+local rockTintOverride: Color3? = nil
 
 local function findKit(): Instance?
 	local ok, serverStorage = pcall(function()
@@ -331,7 +334,8 @@ local function placeKit(kind: string, position: Vector3, rng, decor: Instance, p
 		model:PivotTo(CFrame.new(position) * CFrame.Angles(0, yaw, 0))
 		if spec.Fallback == "Rock" then
 			-- Las rocas del pack son blanco azuladas: se tiñen con la paleta cálida de la isla.
-			local tint = rng.pick({ PALETTE.Rock1, PALETTE.Rock2, PALETTE.Cliff, PALETTE.StoneDark })
+			local tint = rockTintOverride
+				or rng.pick({ PALETTE.Rock1, PALETTE.Rock2, PALETTE.Cliff, PALETTE.StoneDark })
 			for _, part in model:GetDescendants() do
 				if part:IsA("MeshPart") and part.TextureID == "" then
 					part.Color = tint
@@ -343,6 +347,9 @@ local function placeKit(kind: string, position: Vector3, rng, decor: Instance, p
 		if typeof(baseSize) == "Vector3" then
 			size = baseSize * scale
 		end
+		-- Para el atenuado por oclusión del cliente (AmbientController).
+		model:SetAttribute("KitRadius", math.max(size.X, size.Z) / 2)
+		model:SetAttribute("KitHeight", size.Y)
 		model.Parent = decor
 	else
 		fallbackShape(spec.Fallback, position, scale, yaw, decor, rng)
@@ -544,6 +551,9 @@ local function buildIsland(ground: Folder, props: Folder, rng)
 	for index, lobe in MapLayout.Lobes do
 		local top = SURFACE_Y + (index - 1) * 0.02
 		local grass = if index % 2 == 0 then PALETTE.GrassAlt else PALETTE.Grass
+		if index == 5 then
+			grass = VisualConfig.Zones.Corrupted.Grass -- Jardín Corrompido (SE)
+		end
 		polygonLayer(
 			ground,
 			"Lobe" .. index .. "Surface",
@@ -780,6 +790,18 @@ local function buildMesa(ground: Folder, props: Folder, mesa: MapLayout.Mesa, rn
 	end
 end
 
+-- Dirección de los escalones de piedra de las Ruinas (acceso alternativo).
+local RUINS_STEP_DIR = Vector3.new(0.45, 0, 1).Unit
+
+-- Reserva el pasillo de los escalones antes de colocar rocas al pie de la
+-- meseta (una roca allí formaba un hueco del que no se podía salir).
+local function reserveRuinsSteps()
+	local mesa = MapLayout.mesaById("Ruins") :: MapLayout.Mesa
+	for distance = mesa.Radius - 1, mesa.Radius + 12, 2.5 do
+		reserve(mesa.Center + RUINS_STEP_DIR * distance, 9)
+	end
+end
+
 local function buildRuins(ground: Folder, props: Folder, decor: Folder, rng)
 	local mesa = MapLayout.mesaById("Ruins") :: MapLayout.Mesa
 	local top = SURFACE_Y + mesa.Height
@@ -809,9 +831,24 @@ local function buildRuins(ground: Folder, props: Folder, decor: Folder, rng)
 			Shape = Enum.PartType.Cylinder,
 			Size = Vector3.new(height, 2.3, 2.3),
 			CFrame = CFrame.new(base + Vector3.new(0, 0.8 + height / 2, 0)) * CFrame.Angles(0, 0, math.pi / 2),
-			Color = PALETTE.Stone,
+			Color = VisualConfig.Zones.Ruins.Stone,
 			Material = Enum.Material.Limestone,
 		}, props)
+		-- Runa vertical luminosa en la cara que mira al patio.
+		local runeCenter = base + Vector3.new(0, 0.8 + height / 2, 0)
+		newPart(
+			"Part",
+			decorProps({
+				Name = "ColumnRune",
+				Size = Vector3.new(0.3, height * 0.6, 0.12),
+				CFrame = CFrame.lookAt(runeCenter, Vector3.new(center.X, runeCenter.Y, center.Z))
+					* CFrame.new(0, 0, -1.16),
+				Color = VisualConfig.Zones.Ruins.Rune,
+				Material = Enum.Material.Neon,
+				CastShadow = false,
+			}),
+			decor
+		)
 		if broken then
 			newPart(
 				"Part",
@@ -891,7 +928,7 @@ local function buildRuins(ground: Folder, props: Folder, decor: Folder, rng)
 		reserve(position, 4)
 	end
 	-- Escalones de piedra (acceso alternativo saltando, ~2,3 studs cada uno).
-	local stepDir = Vector3.new(0.45, 0, 1).Unit
+	local stepDir = RUINS_STEP_DIR
 	for i = 1, 3 do
 		local position = mesa.Center + stepDir * (mesa.Radius + 7.5 - i * 2.6)
 		local height = i * 2.3
@@ -977,9 +1014,9 @@ local function buildSanctuary(ground: Folder, props: Folder, decor: Folder, rng)
 		s.Radius,
 		top,
 		4,
-		PALETTE.GrassDark,
+		VisualConfig.Zones.Celestial.Stone,
 		s.Angle,
-		Enum.Material.Grass
+		Enum.Material.Marble
 	)
 	polygonLayer(
 		ground,
@@ -1185,6 +1222,308 @@ local function buildPond(decor: Folder, center: Vector3, radius: number)
 	reserve(center, radius + 1)
 end
 
+------------------------------------------------------------ Zonas (Fase 2.5)
+-- Farolillo de piedra con luz cálida (Bosque Sakura).
+local function buildLantern(props: Folder, decor: Folder, base: Vector3, withLight: boolean)
+	local zone = VisualConfig.Zones.Forest
+	newPart("Part", {
+		Name = "LanternBase",
+		Size = Vector3.new(1.6, 0.6, 1.6),
+		CFrame = CFrame.new(base + Vector3.new(0, 0.3, 0)),
+		Color = PALETTE.StoneDark,
+		Material = Enum.Material.Slate,
+	}, props)
+	newPart("Part", {
+		Name = "LanternPost",
+		Size = Vector3.new(0.6, 2.4, 0.6),
+		CFrame = CFrame.new(base + Vector3.new(0, 1.8, 0)),
+		Color = PALETTE.Stone,
+		Material = Enum.Material.Slate,
+	}, props)
+	local lamp = newPart(
+		"Part",
+		decorProps({
+			Name = "LanternLamp",
+			Size = Vector3.new(1.2, 1, 1.2),
+			CFrame = CFrame.new(base + Vector3.new(0, 3.5, 0)),
+			Color = zone.Lantern,
+			Material = Enum.Material.Neon,
+			CastShadow = false,
+		}),
+		decor
+	)
+	for _, sign in { 1, -1 } do
+		newPart(
+			"WedgePart",
+			decorProps({
+				Name = "LanternRoof",
+				Size = Vector3.new(2, 0.6, 1),
+				CFrame = CFrame.new(base + Vector3.new(0, 4.3, 0.5 * sign))
+					* CFrame.Angles(0, if sign > 0 then 0 else math.pi, 0),
+				Color = PALETTE.StoneDark,
+				Material = Enum.Material.Slate,
+			}),
+			decor
+		)
+	end
+	if withLight then
+		local light = Instance.new("PointLight")
+		light.Color = zone.Lantern
+		light.Range = 14
+		light.Brightness = 1.4
+		light.Shadows = false
+		light.Parent = lamp
+	end
+	reserve(base, 2)
+end
+
+-- Emisor ambiental (pétalos, luciérnagas, humo): el cliente lo apaga en calidad baja.
+local function ambientEmitter(decor: Folder, name: string, cframe: CFrame, size: Vector3, props: { [string]: any })
+	local holder = newPart(
+		"Part",
+		decorProps({
+			Name = name,
+			Size = size,
+			CFrame = cframe,
+			Transparency = 1,
+			CastShadow = false,
+		}),
+		decor
+	)
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Name = name .. "Emitter"
+	emitter.LightInfluence = 0
+	for key, value in props do
+		(emitter :: any)[key] = value
+	end
+	emitter:SetAttribute("Ambient", true)
+	emitter.Parent = holder
+	return emitter
+end
+
+-- Torii en la llegada del puente al Santuario Celestial (fuera del ancho caminable).
+local function buildTorii(props: Folder, decor: Folder, base: Vector3, facing: Vector3)
+	local zone = VisualConfig.Zones.Celestial
+	local dark = Color3.fromRGB(34, 26, 30)
+	local side = Vector3.new(-facing.Z, 0, facing.X)
+	local orientation = CFrame.lookAt(base, base + facing)
+	for _, sign in { -1, 1 } do
+		local foot = base + side * sign * 6
+		newPart("Part", {
+			Name = "ToriiPillar",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(11, 1.3, 1.3),
+			CFrame = CFrame.new(foot + Vector3.new(0, 5.5, 0)) * CFrame.Angles(0, 0, math.pi / 2),
+			Color = zone.Torii,
+		}, props)
+		newPart("Part", {
+			Name = "ToriiFoot",
+			Size = Vector3.new(1.8, 0.8, 1.8),
+			CFrame = CFrame.new(foot + Vector3.new(0, 0.4, 0)),
+			Color = dark,
+			Material = Enum.Material.Slate,
+		}, props)
+	end
+	-- Travesaño inferior (nuki), superior (kasagi) y puntas levantadas.
+	local beams = {
+		{ "ToriiNuki", Vector3.new(14, 0.7, 0.8), 8.4, zone.Torii },
+		{ "ToriiShimaki", Vector3.new(15, 0.6, 1.2), 10.1, zone.Torii },
+		{ "ToriiKasagi", Vector3.new(16, 0.9, 1.4), 10.8, dark },
+	}
+	for _, info in beams do
+		newPart(
+			"Part",
+			decorProps({
+				Name = info[1],
+				Size = info[2],
+				CFrame = orientation * CFrame.new(0, info[3], 0),
+				Color = info[4],
+			}),
+			decor
+		)
+	end
+	for _, sign in { -1, 1 } do
+		newPart(
+			"WedgePart",
+			decorProps({
+				Name = "ToriiTip",
+				Size = Vector3.new(1.4, 0.8, 1.6),
+				CFrame = orientation * CFrame.new(sign * 8.6, 11.1, 0) * CFrame.Angles(0, sign * math.pi / 2, 0),
+				Color = dark,
+			}),
+			decor
+		)
+	end
+	newPart(
+		"Part",
+		decorProps({
+			Name = "ToriiPlaque",
+			Size = Vector3.new(1.6, 2, 0.3),
+			CFrame = orientation * CFrame.new(0, 9.3, 0),
+			Color = zone.Gold,
+			Material = Enum.Material.Neon,
+			CastShadow = false,
+		}),
+		decor
+	)
+end
+
+--[[
+	Cascada que cae desde el borde de la isla al vacío: un arroyo sobre el
+	borde y dos haces (Beam) con textura en movimiento, más espuma arriba y
+	bruma abajo. Todo decorativo.
+]]
+local function buildWaterfall(decor: Folder, spring: Vector3, edge: Vector3, height: number)
+	local horizontal = flat(edge) - flat(spring)
+	local direction = horizontal.Unit
+	local streamStart = flat(spring) + Vector3.new(0, SURFACE_Y + 0.1, 0)
+	local streamEnd = flat(edge) + Vector3.new(0, SURFACE_Y + 0.1, 0)
+	newPart(
+		"Part",
+		decorProps({
+			Name = "Stream",
+			Size = Vector3.new(3.4, 0.16, horizontal.Magnitude),
+			CFrame = CFrame.lookAt((streamStart + streamEnd) / 2, streamEnd),
+			Color = PALETTE.Water,
+			Material = Enum.Material.Glass,
+			Transparency = 0.2,
+			Reflectance = 0.1,
+		}),
+		decor
+	)
+	local topPosition = flat(edge) + direction * 3.5 + Vector3.new(0, SURFACE_Y - 0.4, 0)
+	local top = newPart(
+		"Part",
+		decorProps({
+			Name = "WaterfallTop",
+			Size = Vector3.new(1, 1, 1),
+			CFrame = CFrame.lookAt(topPosition, topPosition + direction),
+			Transparency = 1,
+		}),
+		decor
+	)
+	local a0 = Instance.new("Attachment")
+	a0.Parent = top
+	local a1 = Instance.new("Attachment")
+	a1.Position = Vector3.new(0, -height, -6) -- cae algo hacia fuera, despegada del acantilado
+	a1.Parent = top
+	-- Capa 1: lámina continua (sin textura). Capa 2: reflejos que fluyen hacia abajo.
+	local layers = {
+		{ Width = 5.5, Texture = "", Length = 1, Speed = 0, Transparency = 0.3, Light = 0.25 },
+		{
+			Width = 3.6,
+			Texture = VisualConfig.Textures.Glow,
+			Length = 2.6,
+			Speed = 3.2,
+			Transparency = 0.25,
+			Light = 0.7,
+		},
+	}
+	for index, layer in layers do
+		local beam = Instance.new("Beam")
+		beam.Name = "Waterfall" .. index
+		beam.Attachment0 = a0
+		beam.Attachment1 = a1
+		beam.Texture = layer.Texture
+		beam.TextureMode = Enum.TextureMode.Wrap
+		beam.TextureLength = layer.Length
+		beam.TextureSpeed = layer.Speed
+		beam.Width0 = layer.Width
+		beam.Width1 = layer.Width * 1.7
+		beam.FaceCamera = true
+		beam.LightEmission = layer.Light
+		beam.LightInfluence = 0.5
+		beam.Segments = 12
+		beam.Color = ColorSequence.new(Color3.fromRGB(235, 250, 255), PALETTE.Water)
+		beam.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, layer.Transparency),
+			NumberSequenceKeypoint.new(0.6, layer.Transparency + 0.15),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		beam.Parent = top
+	end
+	ambientEmitter(decor, "WaterfallFoam", CFrame.new(topPosition), Vector3.new(4, 0.5, 2), {
+		Texture = VisualConfig.Textures.Smoke,
+		Color = ColorSequence.new(Color3.new(1, 1, 1)),
+		Size = NumberSequence.new(1.2, 2.8),
+		Transparency = NumberSequence.new(0.5, 1),
+		Lifetime = NumberRange.new(0.6, 1),
+		Speed = NumberRange.new(1, 3),
+		Rate = 10,
+		SpreadAngle = Vector2.new(40, 40),
+	})
+	ambientEmitter(
+		decor,
+		"WaterfallMist",
+		CFrame.new(topPosition + direction * 2 - Vector3.new(0, height * 0.7, 0)),
+		Vector3.new(8, 4, 8),
+		{
+			Texture = VisualConfig.Textures.Smoke,
+			Color = ColorSequence.new(Color3.fromRGB(230, 245, 255)),
+			Size = NumberSequence.new(4, 9),
+			Transparency = NumberSequence.new(0.6, 1),
+			Lifetime = NumberRange.new(2, 3),
+			Speed = NumberRange.new(0.5, 1.5),
+			Rate = 4,
+		}
+	)
+	reserve(spring, 4)
+	reserveSegment(spring, edge, 3)
+end
+
+-- Jardín Corrompido: grietas de vacío y cristales rojo/violeta con humo oscuro.
+local function buildCorruption(decor: Folder, center: Vector3, rng)
+	local zone = VisualConfig.Zones.Corrupted
+	for index = 1, 9 do
+		local angle = rng.range(0, TAU)
+		local distance = rng.range(6, 30)
+		local position =
+			Vector3.new(center.X + math.cos(angle) * distance, SURFACE_Y + 0.11, center.Z + math.sin(angle) * distance)
+		if not MapLayout.isWalkable(position, 3) then
+			continue
+		end
+		-- Grieta en zigzag: tres segmentos de neón finos a ras de suelo.
+		local previous = position
+		for _ = 1, 3 do
+			local nextPoint = previous + Vector3.new(rng.range(-3, 3), 0, rng.range(-3, 3))
+			newPart(
+				"Part",
+				decorProps({
+					Name = "VoidCrack",
+					Size = Vector3.new(0.3, 0.06, (nextPoint - previous).Magnitude + 0.2),
+					CFrame = CFrame.lookAt((previous + nextPoint) / 2, nextPoint),
+					Color = if index % 2 == 0 then zone.Crystal else zone.Crystal2,
+					Material = Enum.Material.Neon,
+					CastShadow = false,
+				}),
+				decor
+			)
+			previous = nextPoint
+		end
+	end
+	for index, spot in
+		{ Vector3.new(30, 0, -34), Vector3.new(60, 0, -36), Vector3.new(38, 0, -66), Vector3.new(64, 0, -52) }
+	do
+		local tint = if index % 2 == 0 then zone.Crystal else zone.Crystal2
+		local cluster = buildCrystalCluster(decor, "VoidCrystal" .. index, spot, rng, index <= 1, tint)
+		cluster:SetAttribute("Float", 0.25)
+		reserve(spot, 3)
+		if index <= 2 then
+			ambientEmitter(decor, "VoidSmoke", CFrame.new(spot + Vector3.new(0, 1, 0)), Vector3.new(3, 1, 3), {
+				Texture = VisualConfig.Textures.Smoke,
+				Color = ColorSequence.new(Color3.fromRGB(60, 20, 70)),
+				LightEmission = 0,
+				Size = NumberSequence.new(2, 4),
+				Transparency = NumberSequence.new(0.55, 1),
+				Lifetime = NumberRange.new(1.5, 2.5),
+				Speed = NumberRange.new(1, 2),
+				Rate = 3,
+				EmissionDirection = Enum.NormalId.Top,
+			})
+		end
+	end
+end
+
 -- Construye el mapa completo dentro de `parent` y devuelve la carpeta Map.
 function MapBuilder.build(parent: Instance): Folder
 	local rng = makeRng(GameConfig.Map.Seed)
@@ -1222,6 +1561,7 @@ function MapBuilder.build(parent: Instance): Folder
 	buildPath(decor, Vector3.new(-10, SURFACE_Y, -9), Vector3.new(-30, SURFACE_Y, -45), 4, rng)
 	buildPath(decor, Vector3.new(-12, SURFACE_Y, 8), Vector3.new(-40, SURFACE_Y, 26), 4, rng)
 
+	reserveRuinsSteps()
 	for _, mesa in MapLayout.Mesas do
 		buildMesa(ground, props, mesa, rng)
 	end
@@ -1241,8 +1581,15 @@ function MapBuilder.build(parent: Instance): Folder
 		buildCrystalCluster(decor, "ForestCrystal" .. index, spot, rng, index <= 2)
 		reserve(spot, 3)
 	end
+	-- Bosque Sakura: predominan los árboles en flor; farolillos en los claros.
+	for index, spot in
+		{ Vector3.new(-22, 0, -36), Vector3.new(-44, 0, -42), Vector3.new(-36, 0, -66), Vector3.new(-58, 0, -70) }
+	do
+		buildLantern(props, decor, spot, index % 2 == 1)
+	end
+	buildWaterfall(decor, Vector3.new(-62, SURFACE_Y, -50), Vector3.new(-79.5, SURFACE_Y, -51), 70)
 	scatter(
-		{ "TreeRound", "TreeNormal", "TreeTwist", "TreePine", "TreeBlossom" },
+		{ "TreeBlossom", "TreeBlossom", "TreeBlossom", "TreeRound", "TreeNormal", "TreePine" },
 		forest,
 		6,
 		34,
@@ -1260,10 +1607,37 @@ function MapBuilder.build(parent: Instance): Folder
 	scatter({ "GrassA", "GrassB", "GrassC", "BushSmall", "Rock" }, hills, 20, 40, 14, 3, rng, decor, props)
 	placeKit("TreeBlossom", Vector3.new(-60, SURFACE_Y + 4, 41), rng, decor, props, 1.3)
 
-	-- Jardín de Piedra (SE): agujas de roca entre las que se puede combatir.
+	-- Jardín Corrompido (SE): agujas de roca oscura, cristales del vacío y grietas.
 	local rocks = Vector3.new(44, SURFACE_Y, -42)
+	buildCorruption(decor, rocks, rng)
+	rockTintOverride = VisualConfig.Zones.Corrupted.Rock
 	scatter({ "Spire" }, rocks, 10, 30, 7, 9, rng, decor, props)
 	scatter({ "Rock", "Boulder", "TreeDead", "GrassC" }, rocks, 6, 34, 12, 4, rng, decor, props)
+	rockTintOverride = nil
+
+	-- Cascada de las Ruinas (NE) y torii del Santuario Celestial.
+	buildWaterfall(decor, Vector3.new(74, SURFACE_Y, 58), Vector3.new(82.5, SURFACE_Y, 65), 80)
+	buildTorii(props, decor, Vector3.new(0, MapLayout.Sanctuary.Center.Y, 101.5), Vector3.new(0, 0, 1))
+	ambientEmitter(
+		decor,
+		"Fireflies",
+		CFrame.new(MapLayout.Sanctuary.Center + Vector3.new(0, 3, 0)),
+		Vector3.new(30, 4, 30),
+		{
+			Texture = VisualConfig.Textures.Glow,
+			Color = ColorSequence.new(VisualConfig.Zones.Celestial.Gold),
+			LightEmission = 1,
+			Size = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0),
+				NumberSequenceKeypoint.new(0.5, 0.5),
+				NumberSequenceKeypoint.new(1, 0),
+			}),
+			Lifetime = NumberRange.new(2.5, 4),
+			Speed = NumberRange.new(0.3, 1),
+			SpreadAngle = Vector2.new(180, 180),
+			Rate = 8,
+		}
+	)
 
 	-- Alrededores de las Ruinas (NE).
 	scatter(

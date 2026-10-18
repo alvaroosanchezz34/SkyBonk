@@ -17,6 +17,7 @@ local RunService = game:GetService("RunService")
 local Shared = ReplicatedStorage.Shared
 local GameConfig = require(Shared.Config.GameConfig)
 local Progression = require(Shared.Progression)
+local VisualConfig = require(Shared.Config.VisualConfig)
 local Net = require(Shared.Net)
 local Types = require(Shared.Types)
 
@@ -53,6 +54,32 @@ local function setCharacterCollisionGroup(character: Model)
 	for _, descendant in character:GetDescendants() do
 		if descendant:IsA("BasePart") then
 			descendant.CollisionGroup = "Players"
+		end
+	end
+end
+
+--[[
+	Paquete de animaciones del personaje (VisualConfig.PlayerAnimations, de
+	Roblox). Se cambian los AnimationId del script Animate estándar, que recarga
+	sus pistas al detectar el cambio. Solo R15 (los ids son de R15).
+]]
+local function applyAnimationPack(character: Model, humanoid: Humanoid)
+	if humanoid.RigType ~= Enum.HumanoidRigType.R15 then
+		return
+	end
+	local animate = character:FindFirstChild("Animate")
+	if animate == nil then
+		return
+	end
+	for stateName, animations in VisualConfig.PlayerAnimations do
+		local state = animate:FindFirstChild(stateName)
+		if state then
+			for animationName, id in animations do
+				local animation = state:FindFirstChild(animationName)
+				if animation and animation:IsA("Animation") then
+					animation.AnimationId = id
+				end
+			end
 		end
 	end
 end
@@ -151,7 +178,8 @@ function MatchService.DamagePlayer(run: Run, rawDamage: number, ignoreReduction:
 	end
 	humanoid.Health = math.max(0, humanoid.Health - amount)
 	if not ignoreReduction then
-		run.InvulnerableUntil = math.max(run.InvulnerableUntil, run.State.Elapsed + GameConfig.Player.HitInvulnerability)
+		run.InvulnerableUntil =
+			math.max(run.InvulnerableUntil, run.State.Elapsed + GameConfig.Player.HitInvulnerability)
 	end
 	Net.PlayerDamaged:FireClient(run.Player, {
 		Amount = amount,
@@ -248,6 +276,7 @@ function MatchService.StartRun(player: Player)
 	humanoid.Health = humanoid.MaxHealth
 	humanoid.WalkSpeed = StatSheet.walkSpeed(run.State.Stats)
 	setCharacterCollisionGroup(character)
+	applyAnimationPack(character, humanoid)
 	-- Espada del Vendaval visible en la mano (solo decorativa: el daño lo calcula CombatService).
 	local hand = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
 	if hand and hand:IsA("BasePart") then

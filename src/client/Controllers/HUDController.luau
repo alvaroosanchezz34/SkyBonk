@@ -4,7 +4,8 @@
 	  • nivel, barra de experiencia, tiempo y enemigos derrotados (arriba),
 	  • vida actual/máxima (arriba a la izquierda),
 	  • panel de estadísticas plegable (Tab / C o botón táctil),
-	  • rótulo de subida de nivel y viñeta roja al recibir daño.
+	  • rótulo de subida de nivel y viñeta roja al recibir daño,
+	  • barra del jefe, franjas de cine para su entrada y botón de calidad FX.
 	Solo muestra el estado que envía el servidor; no decide nada.
 ]]
 
@@ -18,6 +19,7 @@ local GameConfig = require(Shared.Config.GameConfig)
 local Net = require(Shared.Net)
 local Types = require(Shared.Types)
 local Theme = require(script.Parent.Parent.UI.Theme)
+local AuraSystem = require(script.Parent.Parent.Util.AuraSystem)
 
 local HUDController = {}
 
@@ -92,7 +94,7 @@ local function buildTopPanel()
 		Size = UDim2.new(1, 0, 0, 34),
 		Position = UDim2.fromOffset(0, 21),
 		Text = "1",
-		Font = Theme.Fonts.Title,
+		Font = Theme.Fonts.Numbers,
 		TextSize = 30,
 		Parent = badge,
 	})
@@ -277,11 +279,12 @@ local function buildBannerAndVignette()
 		Visible = false,
 		Parent = gui,
 	})
+	-- Solo los bordes y semitransparente: avisa del golpe sin tapar el combate.
 	local edges = {
-		{ UDim2.fromScale(1, 0.22), UDim2.fromScale(0, 0), 90 },
-		{ UDim2.fromScale(1, 0.22), UDim2.fromScale(0, 0.78), -90 },
-		{ UDim2.fromScale(0.16, 1), UDim2.fromScale(0, 0), 0 },
-		{ UDim2.fromScale(0.16, 1), UDim2.fromScale(0.84, 0), 180 },
+		{ UDim2.fromScale(1, 0.1), UDim2.fromScale(0, 0), 90 },
+		{ UDim2.fromScale(1, 0.1), UDim2.fromScale(0, 0.9), -90 },
+		{ UDim2.fromScale(0.07, 1), UDim2.fromScale(0, 0), 0 },
+		{ UDim2.fromScale(0.07, 1), UDim2.fromScale(0.93, 0), 180 },
 	}
 	for _, edge in edges do
 		New("Frame", {
@@ -294,13 +297,211 @@ local function buildBannerAndVignette()
 			New("UIGradient", {
 				Rotation = edge[3],
 				Transparency = NumberSequence.new({
-					NumberSequenceKeypoint.new(0, 0.35),
+					NumberSequenceKeypoint.new(0, 0.55),
 					NumberSequenceKeypoint.new(1, 1),
 				}),
 			}),
 		})
 	end
 	refs.Vignette = vignette
+end
+
+--------------------------------------------- Jefe, cinemática y calidad
+-- Barra del jefe (Rey Slime): se muestra mientras haya uno vivo.
+local function buildBossBar()
+	local panel = New("Frame", {
+		Name = "BossBar",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 80),
+		Size = UDim2.fromOffset(460, 44),
+		BackgroundTransparency = 1,
+		Visible = false,
+		Parent = gui,
+	})
+	Theme.Scaled(panel)
+	refs.BossName = Theme.Label({
+		Size = UDim2.new(1, 0, 0, 20),
+		Text = "REY SLIME DEL VACÍO",
+		Font = Theme.Fonts.Title,
+		TextSize = 22,
+		TextColor3 = C.Boss:Lerp(Color3.new(1, 1, 1), 0.35),
+		TextStrokeTransparency = 0.2,
+		Parent = panel,
+	})
+	local _, fill, barText = Theme.Bar({
+		Name = "Bar",
+		Position = UDim2.fromOffset(0, 22),
+		Size = UDim2.new(1, 0, 0, 16),
+		Parent = panel,
+	}, C.Boss, C.Shadow)
+	barText.Text = ""
+	refs.BossPanel, refs.BossFill = panel, fill
+end
+
+local bossModel: Model? = nil
+local bossConnection: RBXScriptConnection? = nil
+
+local function setBoss(model: Model?)
+	if bossConnection then
+		bossConnection:Disconnect()
+		bossConnection = nil
+	end
+	bossModel = model
+	refs.BossPanel.Visible = model ~= nil
+	if model == nil then
+		return
+	end
+	local function refresh()
+		local health = model:GetAttribute("Health")
+		local maxHealth = model:GetAttribute("MaxHealth")
+		if type(health) == "number" and type(maxHealth) == "number" and maxHealth > 0 then
+			tween(refs.BossFill, 0.15, { Size = UDim2.fromScale(math.clamp(health / maxHealth, 0, 1), 1) })
+		end
+		if model:GetAttribute("Dead") or model.Parent == nil then
+			setBoss(nil)
+		end
+	end
+	bossConnection = model.AttributeChanged:Connect(refresh)
+	refresh()
+end
+
+local function watchBosses()
+	local enemies = workspace:WaitForChild("ActiveEnemies")
+	enemies.ChildAdded:Connect(function(child)
+		task.defer(function()
+			if child:GetAttribute("EnemyId") == "VoidKing" then
+				setBoss(child :: Model)
+			end
+		end)
+	end)
+	enemies.ChildRemoved:Connect(function(child)
+		if child == bossModel then
+			setBoss(nil)
+			-- Si queda otro rey vivo, pasa a mostrarse el suyo.
+			for _, other in enemies:GetChildren() do
+				if other:GetAttribute("EnemyId") == "VoidKing" and not other:GetAttribute("Dead") then
+					setBoss(other :: Model)
+					break
+				end
+			end
+		end
+	end)
+end
+
+-- Franjas de cine con rótulo (entrada del jefe). No bloquea el control.
+local function buildCinematic()
+	-- ZIndex 0: las franjas quedan por detrás del HUD (vida y XP siguen visibles).
+	local layer = New("Frame", {
+		Name = "Cinematic",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Visible = false,
+		ZIndex = 0,
+		Parent = gui,
+	})
+	refs.CinemaTop = New("Frame", {
+		Size = UDim2.new(1, 0, 0.08, 0),
+		Position = UDim2.fromScale(0, -0.08),
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		BorderSizePixel = 0,
+		Parent = layer,
+	})
+	refs.CinemaBottom = New("Frame", {
+		AnchorPoint = Vector2.new(0, 1),
+		Size = UDim2.new(1, 0, 0.08, 0),
+		Position = UDim2.fromScale(0, 1.08),
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		BorderSizePixel = 0,
+		Parent = layer,
+	})
+	refs.CinemaTitle = Theme.Label({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.22),
+		Size = UDim2.fromOffset(700, 70),
+		Text = "",
+		Font = Theme.Fonts.Title,
+		TextSize = 56,
+		TextColor3 = C.Boss:Lerp(Color3.new(1, 1, 1), 0.3),
+		TextStrokeTransparency = 0,
+		TextTransparency = 1,
+		Parent = layer,
+	})
+	refs.CinemaSubtitle = Theme.Label({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.29),
+		Size = UDim2.fromOffset(700, 30),
+		Text = "",
+		Font = Theme.Fonts.Bold,
+		TextSize = 20,
+		TextTransparency = 1,
+		Parent = layer,
+	})
+	refs.Cinematic = layer
+end
+
+local cinemaToken = 0
+function HUDController.Cinematic(title: string, subtitle: string, duration: number)
+	cinemaToken += 1
+	local token = cinemaToken
+	local layer = refs.Cinematic
+	layer.Visible = true
+	refs.CinemaTitle.Text = title
+	refs.CinemaSubtitle.Text = subtitle
+	refs.CinemaTitle.Size = UDim2.fromOffset(500, 50)
+	tween(refs.CinemaTop, 0.3, { Position = UDim2.fromScale(0, 0) })
+	tween(refs.CinemaBottom, 0.3, { Position = UDim2.fromScale(0, 1) })
+	tween(refs.CinemaTitle, 0.35, { TextTransparency = 0, Size = UDim2.fromOffset(700, 70) }, Enum.EasingStyle.Back)
+	tween(refs.CinemaSubtitle, 0.4, { TextTransparency = 0 })
+	task.delay(duration, function()
+		if token ~= cinemaToken then
+			return
+		end
+		tween(refs.CinemaTop, 0.35, { Position = UDim2.fromScale(0, -0.08) })
+		tween(refs.CinemaBottom, 0.35, { Position = UDim2.fromScale(0, 1.08) })
+		tween(refs.CinemaTitle, 0.3, { TextTransparency = 1 })
+		tween(refs.CinemaSubtitle, 0.3, { TextTransparency = 1 })
+		task.delay(0.4, function()
+			if token == cinemaToken then
+				layer.Visible = false
+			end
+		end)
+	end)
+end
+
+-- Botón de calidad de efectos (también tecla G).
+local function buildFxButton()
+	local button = New("TextButton", {
+		Name = "FxButton",
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -12, 1, -12),
+		Size = UDim2.fromOffset(118, 34),
+		BackgroundColor3 = C.Panel,
+		BackgroundTransparency = 0.15,
+		AutoButtonColor = true,
+		Text = "",
+		Parent = gui,
+	}, {
+		Theme.Corner(8),
+		Theme.Stroke(C.PanelStroke, 2, 0.4),
+	})
+	Theme.Scaled(button)
+	local label = Theme.Label({
+		Size = UDim2.fromScale(1, 1),
+		Text = "",
+		Font = Theme.Fonts.Bold,
+		TextSize = 15,
+		Parent = button,
+	})
+	local function refresh()
+		local high = AuraSystem.GetQualityName() == "High"
+		label.Text = if high then "✨ FX: ALTO  [G]" else "FX: BAJO  [G]"
+		label.TextColor3 = if high then C.Accent else C.TextDim
+	end
+	button.Activated:Connect(function()
+		AuraSystem.ToggleQuality()
+	end)
+	AuraSystem.QualityChanged:Connect(refresh)
+	refresh()
 end
 
 function HUDController.ToggleStats()
@@ -389,6 +590,10 @@ function HUDController.Start()
 	buildHealthPanel()
 	buildStatsPanel()
 	buildBannerAndVignette()
+	buildBossBar()
+	buildCinematic()
+	buildFxButton()
+	task.spawn(watchBosses)
 	if controllers.InputController.IsTouchOnly() then
 		HUDController.ToggleStats() -- plegado por defecto en móvil
 	end

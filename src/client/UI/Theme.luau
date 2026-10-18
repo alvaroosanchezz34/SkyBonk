@@ -9,10 +9,13 @@ local Workspace = game:GetService("Workspace")
 
 local Theme = {}
 
+-- Estilo anime fantasy (Fase 2.5): azul noche, acentos cian (jugador) y dorado (recompensa).
 Theme.Colors = {
-	Panel = Color3.fromRGB(22, 26, 52),
-	PanelLight = Color3.fromRGB(36, 42, 82),
-	PanelStroke = Color3.fromRGB(120, 140, 220),
+	Panel = Color3.fromRGB(14, 18, 42),
+	PanelLight = Color3.fromRGB(30, 38, 84),
+	PanelStroke = Color3.fromRGB(110, 200, 255),
+	Accent = Color3.fromRGB(120, 235, 255),
+	Boss = Color3.fromRGB(214, 60, 120),
 	Gold = Color3.fromRGB(255, 208, 96),
 	Text = Color3.fromRGB(240, 244, 255),
 	TextDim = Color3.fromRGB(170, 182, 220),
@@ -25,7 +28,8 @@ Theme.Colors = {
 }
 
 Theme.Fonts = {
-	Title = Enum.Font.FredokaOne,
+	Title = Enum.Font.Bangers, -- rótulos (estilo cómic/manga)
+	Numbers = Enum.Font.FredokaOne, -- cifras y números de daño (máxima legibilidad)
 	Body = Enum.Font.GothamMedium,
 	Bold = Enum.Font.GothamBold,
 }
@@ -90,14 +94,19 @@ function Theme.Label(props: { [string]: any }): TextLabel
 	return Theme.New("TextLabel", defaults)
 end
 
--- Barra con fondo y relleno; devuelve (contenedor, relleno, texto).
+--[[
+	Barra estilizada: fondo oscuro, relleno con degradado horizontal (más claro
+	en la punta), brillo superior y borde luminoso del color del relleno.
+	Devuelve (contenedor, relleno, texto).
+]]
 function Theme.Bar(props: { [string]: any }, fillColor: Color3, backColor: Color3): (Frame, Frame, TextLabel)
 	local container = Theme.New("Frame", props, {
-		Theme.Corner(8),
-		Theme.Stroke(Theme.Colors.Shadow, 2, 0.3),
+		Theme.Corner(6),
+		Theme.Stroke(fillColor:Lerp(Color3.new(1, 1, 1), 0.2), 2, 0.25),
 	})
 	container.BackgroundColor3 = backColor
 	container.BorderSizePixel = 0
+	container.ClipsDescendants = false
 	local fill = Theme.New("Frame", {
 		Name = "Fill",
 		Size = UDim2.fromScale(0, 1),
@@ -105,15 +114,24 @@ function Theme.Bar(props: { [string]: any }, fillColor: Color3, backColor: Color
 		BorderSizePixel = 0,
 		Parent = container,
 	}, {
-		Theme.Corner(8),
+		Theme.Corner(6),
 		Theme.New("UIGradient", {
-			Rotation = 90,
-			Transparency = NumberSequence.new({
-				NumberSequenceKeypoint.new(0, 0),
-				NumberSequenceKeypoint.new(1, 0.25),
-			}),
+			Color = ColorSequence.new(
+				fillColor:Lerp(Color3.new(0, 0, 0), 0.25),
+				fillColor:Lerp(Color3.new(1, 1, 1), 0.35)
+			),
 		}),
 	})
+	Theme.New("Frame", {
+		Name = "Shine",
+		Size = UDim2.new(1, -6, 0.32, 0),
+		Position = UDim2.fromOffset(3, 2),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.78,
+		BorderSizePixel = 0,
+		ZIndex = 2,
+		Parent = fill,
+	}, { Theme.Corner(4) })
 	local text = Theme.Label({
 		Name = "Text",
 		Size = UDim2.fromScale(1, 1),
@@ -176,6 +194,30 @@ function Theme.StartAutoScale()
 	end
 	Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(bindCamera)
 	bindCamera()
+end
+
+-- Panel con degradado vertical y línea de acento superior.
+function Theme.Panel(props: { [string]: any }, accent: Color3?): Frame
+	local panel = Theme.New("Frame", props, {
+		Theme.Corner(10),
+		Theme.Stroke(accent or Theme.Colors.PanelStroke, 2, 0.35),
+		Theme.New("UIGradient", {
+			Rotation = 90,
+			Color = ColorSequence.new(Theme.Colors.PanelLight, Theme.Colors.Panel),
+		}),
+	})
+	panel.BackgroundColor3 = Color3.new(1, 1, 1)
+	panel.BorderSizePixel = 0
+	Theme.New("Frame", {
+		Name = "AccentLine",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 0),
+		Size = UDim2.new(0.6, 0, 0, 2),
+		BackgroundColor3 = accent or Theme.Colors.Accent,
+		BorderSizePixel = 0,
+		Parent = panel,
+	})
+	return panel
 end
 
 function Theme.FormatTime(seconds: number): string

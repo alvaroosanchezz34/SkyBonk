@@ -64,3 +64,10 @@ globals:
       - type: "..."
   _G:
     property: new-fields
+  debug.profilebegin:
+    args:
+      - type: string
+  debug.profileend:
+    args: []
+  OverlapParams:
+    any: true

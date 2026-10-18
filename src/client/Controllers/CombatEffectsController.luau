@@ -29,6 +29,7 @@ local Shared = ReplicatedStorage.Shared
 local GameConfig = require(Shared.Config.GameConfig)
 local WeaponConfig = require(Shared.Config.WeaponConfig)
 local Net = require(Shared.Net)
+local VisualConfig = require(Shared.Config.VisualConfig)
 local Sfx = require(script.Parent.Parent.Util.Sfx)
 local FxPool = require(script.Parent.Parent.Util.FxPool)
 
@@ -76,6 +77,9 @@ local slashIndex = 0
 local swordTrail: Trail? = nil
 local swordTrailUntil = 0
 local swordGlow = 0
+local slashSide = 1 -- alterna tajos de izquierda a derecha y al revés
+local lastCritKickAt = 0
+local SWORD = VisualConfig.Weapons.GaleSword
 
 local function character(): Model?
 	return player.Character
@@ -365,6 +369,29 @@ local function onCombatFx(attack)
 	task.delay(windup * 0.6, function()
 		Sfx.Play("Attack", 1 + (#attack.Shots - 1) * 0.04)
 	end)
+	-- Corte en media luna en el instante del tajo, orientado al primer objetivo.
+	local firstShot = attack.Shots[1]
+	task.delay(windup * 0.8, function()
+		local root = rootPart()
+		if root == nil or firstShot == nil or typeof(firstShot.Position) ~= "Vector3" then
+			return
+		end
+		local chest = root.Position + Vector3.new(0, 1.1, 0)
+		local target = Vector3.new(firstShot.Position.X, chest.Y, firstShot.Position.Z)
+		if (target - chest).Magnitude < 0.5 then
+			return
+		end
+		local facing = CFrame.lookAt(chest, target)
+		slashSide = -slashSide
+		local radius = 3.2 * (1 + swordGlow * 0.1)
+		FxPool.Slash(
+			facing * CFrame.new(0, 0, -2.4),
+			radius,
+			SWORD.Slash,
+			slashSide * (0.3 + math.random() * 0.25),
+			0.2
+		)
+	end)
 	local now = os.clock()
 	local scale = 1 + swordGlow * 0.08
 	for index, shot in attack.Shots do
@@ -401,12 +428,26 @@ local function onCombatHits(payload)
 		local model = if typeof(hit.Model) == "Instance" then hit.Model else nil
 		local position = modelPosition(model) or hit.Position
 		showDamageNumber(position, hit.Damage, hit.Killed == true, hit.Crit == true, hit.Chain == true)
+		local impact = position + Vector3.new(0, 1, 0)
 		if hit.Crit then
+			-- Crítico: estrella dorada, destello mayor y un pequeño golpe de FOV.
 			anyCrit = true
-			FxPool.Emit("CritSparks", position + Vector3.new(0, 1, 0), 10)
+			FxPool.Emit("CritSparks", impact, 10)
+			FxPool.Star(impact, SWORD.SlashCrit, 6)
+			FxPool.ImpactFlash(impact, SWORD.SlashCrit, 3)
+			local now = os.clock()
+			if now - lastCritKickAt > 0.4 then
+				lastCritKickAt = now
+				controllers.CameraController.FovKick(VisualConfig.Camera.CritFovKick, 0.25)
+			end
+		elseif hit.Chain then
+			FxPool.ImpactFlash(impact, Color3.fromRGB(190, 200, 255), 1.6)
+		else
+			FxPool.ImpactFlash(impact, Color3.new(1, 1, 1), 1.4 + math.random() * 0.8)
 		end
 		if hit.Killed then
 			anyKill = true
+			FxPool.Ring(position - Vector3.new(0, 1.3, 0), 1, 6, 0.25, SWORD.Edge, 0.35, 0.12)
 		end
 		if model then
 			controllers.EnemyVisualsController.OnHit(model, hit.Crit == true)

@@ -19,6 +19,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Types = require(ReplicatedStorage.Shared.Types)
+local VisualConfig = require(ReplicatedStorage.Shared.Config.VisualConfig)
 
 local ModelFactory = {}
 
@@ -188,6 +189,16 @@ function ModelFactory.buildSlime(def: Types.EnemyDef): Model
 			Color = Color3.fromRGB(24, 10, 40),
 		}, model)
 		weld(body, pupil, "PupilWeld")
+		-- Brillo de anime en la pupila: le da vida y expresión al slime.
+		local shine = visualPart({
+			Name = "EyeShine",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(0.16, 0.16, 0.16) * s,
+			CFrame = at(side * 0.75 + 0.1, 2.12, -2.08),
+			Color = Color3.new(1, 1, 1),
+			Material = Enum.Material.Neon,
+		}, model)
+		weld(body, shine, "ShineWeld")
 	end
 
 	if s > 1.5 then
@@ -293,6 +304,21 @@ function ModelFactory.buildSkeleton(def: Types.EnemyDef): Model
 			}, model)
 			weld(head, eye, "EyeWeld")
 		end
+		-- Llama del vacío sobre el cráneo (el cliente la apaga en calidad baja).
+		local flame = Instance.new("ParticleEmitter")
+		flame.Name = "SkullFlame"
+		flame.Texture = VisualConfig.Textures.Fire
+		flame.Color = ColorSequence.new(Color3.fromRGB(220, 160, 255), Color3.fromRGB(120, 50, 220))
+		flame.LightEmission = 1
+		flame.LightInfluence = 0
+		flame.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.7 * s), NumberSequenceKeypoint.new(1, 0) })
+		flame.Transparency = NumberSequence.new(0.2, 1)
+		flame.Lifetime = NumberRange.new(0.3, 0.5)
+		flame.Speed = NumberRange.new(2, 3)
+		flame.SpreadAngle = Vector2.new(15, 15)
+		flame.Rate = 10
+		flame.EmissionDirection = Enum.NormalId.Top
+		flame.Parent = head
 	end
 
 	buildHealthBar(root, height - root.Size.Y / 2 + 0.9, 3.2 * s)
@@ -313,64 +339,125 @@ function ModelFactory.attachGaleSword(character: Model, hand: BasePart): Model
 	if existing then
 		existing:Destroy()
 	end
+	local palette = VisualConfig.Weapons.GaleSword
+	local gold = palette.Guard
 	local sword = Instance.new("Model")
 	sword.Name = "GaleSword"
+	-- La empuñadura es la raíz; la hoja apunta a -Z. Medidas en studs.
 	local grip = visualPart({
 		Name = "Grip",
-		Size = Vector3.new(0.28, 0.28, 1.1),
+		Size = Vector3.new(0.26, 0.26, 1.15),
 		CFrame = CFrame.new(),
-		Color = Color3.fromRGB(70, 52, 96),
+		Color = Color3.fromRGB(46, 36, 72),
 		Material = Enum.Material.Fabric,
 	}, sword)
 	sword.PrimaryPart = grip
-	local pommel = visualPart({
+	local function piece(props: { [string]: any }, name: string): BasePart
+		local part = visualPart(props, sword)
+		weld(grip, part, name)
+		return part
+	end
+	-- Anillas doradas de la empuñadura y pomo con gema.
+	for index, z in { 0.38, -0.05, -0.42 } do
+		piece({
+			Name = "GripBand" .. index,
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.08, 0.32, 0.32),
+			CFrame = CFrame.new(0, 0, z) * CFrame.Angles(0, math.pi / 2, 0),
+			Color = gold,
+			Material = Enum.Material.Metal,
+		}, "BandWeld")
+	end
+	piece({
 		Name = "Pommel",
 		Shape = Enum.PartType.Ball,
-		Size = Vector3.new(0.42, 0.42, 0.42),
-		CFrame = CFrame.new(0, 0, 0.62),
-		Color = Color3.fromRGB(120, 235, 255),
-		Material = Enum.Material.Neon,
-	}, sword)
-	weld(grip, pommel, "PommelWeld")
-	local guard = visualPart({
-		Name = "Guard",
-		Size = Vector3.new(1.2, 0.22, 0.3),
-		CFrame = CFrame.new(0, 0, -0.6),
-		Color = Color3.fromRGB(230, 196, 110),
+		Size = Vector3.new(0.4, 0.4, 0.4),
+		CFrame = CFrame.new(0, 0, 0.7),
+		Color = gold,
 		Material = Enum.Material.Metal,
-	}, sword)
-	weld(grip, guard, "GuardWeld")
-	local blade = visualPart({
-		Name = "Blade",
-		Size = Vector3.new(0.34, 0.1, 3.4),
-		CFrame = CFrame.new(0, 0, -2.4),
-		Color = Color3.fromRGB(150, 240, 255),
-		Material = Enum.Material.Glass,
-		Transparency = 0.15,
-	}, sword)
-	weld(grip, blade, "BladeWeld")
-	local edge = visualPart({
-		Name = "Edge",
-		Size = Vector3.new(0.12, 0.12, 3.2),
-		CFrame = CFrame.new(0, 0, -2.45),
-		Color = Color3.fromRGB(120, 235, 255),
+	}, "PommelWeld")
+	piece({
+		Name = "PommelGem",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(0.24, 0.24, 0.24),
+		CFrame = CFrame.new(0, 0, 0.86),
+		Color = palette.Edge,
 		Material = Enum.Material.Neon,
-	}, sword)
-	weld(grip, edge, "EdgeWeld")
+	}, "GemWeld")
+	-- Guarda alada: barra central + dos alas inclinadas hacia la empuñadura.
+	piece({
+		Name = "Guard",
+		Size = Vector3.new(0.9, 0.18, 0.28),
+		CFrame = CFrame.new(0, 0, -0.62),
+		Color = gold,
+		Material = Enum.Material.Metal,
+	}, "GuardWeld")
+	for _, side in { -1, 1 } do
+		piece({
+			ClassName = "WedgePart",
+			Name = "GuardWing",
+			Size = Vector3.new(0.12, 0.42, 0.75),
+			CFrame = CFrame.new(side * 0.72, 0, -0.5) * CFrame.Angles(0, side * math.rad(28), side * math.rad(90)),
+			Color = gold,
+			Material = Enum.Material.Metal,
+		}, "WingWeld")
+	end
+	piece({
+		Name = "GuardGem",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(0.3, 0.3, 0.3),
+		CFrame = CFrame.new(0, 0, -0.66),
+		Color = palette.Edge,
+		Material = Enum.Material.Neon,
+	}, "GuardGemWeld")
+	-- Hoja de un solo filo: cuerpo, filo de energía y punta en cuña.
+	local blade = piece({
+		Name = "Blade",
+		Size = Vector3.new(0.1, 0.36, 3.1),
+		CFrame = CFrame.new(0, 0.02, -2.3),
+		Color = palette.Blade,
+		Material = Enum.Material.Glass,
+		Transparency = 0.1,
+		Reflectance = 0.15,
+	}, "BladeWeld")
+	piece({
+		Name = "Edge",
+		Size = Vector3.new(0.12, 0.08, 3.2),
+		CFrame = CFrame.new(0, -0.18, -2.35),
+		Color = palette.Edge,
+		Material = Enum.Material.Neon,
+	}, "EdgeWeld")
+	piece({
+		ClassName = "WedgePart",
+		Name = "Tip",
+		Size = Vector3.new(0.1, 0.44, 0.9),
+		CFrame = CFrame.new(0, -0.02, -4.28) * CFrame.Angles(0, math.pi, 0),
+		Color = palette.Blade,
+		Material = Enum.Material.Glass,
+		Transparency = 0.1,
+	}, "TipWeld")
+	piece({
+		Name = "Rune",
+		Size = Vector3.new(0.12, 0.06, 1.5),
+		CFrame = CFrame.new(0, 0.1, -1.7),
+		Color = VisualConfig.Palette.PlayerCore,
+		Material = Enum.Material.Neon,
+		Transparency = 0.2,
+	}, "RuneWeld")
 	-- Puntos de la estela del tajo (el cliente activa la Trail durante el golpe).
 	local a0 = Instance.new("Attachment")
 	a0.Name = "TrailBase"
-	a0.Position = Vector3.new(0, 0, 1.6)
+	a0.Position = Vector3.new(0, 0, 1.3)
 	a0.Parent = blade
 	local a1 = Instance.new("Attachment")
 	a1.Name = "TrailTip"
-	a1.Position = Vector3.new(0, 0, -1.6)
+	a1.Position = Vector3.new(0, 0, -2.2)
 	a1.Parent = blade
 
 	local gripAttachment = hand:FindFirstChild("RightGripAttachment") :: Attachment?
 	local gripOffset = if gripAttachment then gripAttachment.CFrame else CFrame.new(0, -1, 0)
-	-- La hoja apunta hacia delante con el brazo en reposo.
-	-- (las demás piezas siguen a la empuñadura por sus soldaduras)
+	-- La hoja apunta hacia delante con el brazo en reposo
+	-- (las demás piezas siguen a la empuñadura por sus soldaduras).
 	grip.CFrame = hand.CFrame * gripOffset * CFrame.Angles(-math.pi / 2, 0, 0) * CFrame.new(0, 0, -0.1)
 	local handWeld = Instance.new("Weld")
 	handWeld.Name = "HandWeld"

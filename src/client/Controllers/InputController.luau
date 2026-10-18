@@ -8,6 +8,7 @@
 	  SelectOption(index)  teclas 1/2/3 (o botones X/Y/B del mando)
 	  Confirm()            Enter / R / botón A (reiniciar tras la derrota)
 	  ToggleStats()        Tab / C
+	  ToggleFx()           G (efectos completos / reducidos)
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -20,6 +21,7 @@ local InputController = {}
 InputController.SelectOption = Signal.new()
 InputController.Confirm = Signal.new()
 InputController.ToggleStats = Signal.new()
+InputController.ToggleFx = Signal.new()
 
 local OPTION_KEYS: { [Enum.KeyCode]: number } = {
 	[Enum.KeyCode.One] = 1,
@@ -65,6 +67,8 @@ function InputController.Start()
 			InputController.Confirm:Fire()
 		elseif STATS_KEYS[key] then
 			InputController.ToggleStats:Fire()
+		elseif key == Enum.KeyCode.G then
+			InputController.ToggleFx:Fire()
 		end
 	end)
 end

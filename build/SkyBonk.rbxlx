@@ -600,6 +600,224 @@ return UpgradeConfig
         </Item>
         <Item class="ModuleScript" referent="8">
           <Properties>
+            <string name="Name">VisualConfig</string>
+            <string name="Source"><![CDATA[--[[
+	VisualConfig
+	Dirección artística de SKYBONK (Fase 2.5): paletas, perfiles de aura,
+	convenciones de armas, animaciones del personaje y niveles de calidad.
+	Solo presentación: nada de aquí afecta al combate. Guía completa en
+	docs/ART_DIRECTION.md.
+
+	Texturas: las incluidas en el propio cliente de Roblox (rbxasset://),
+	comprobadas con ContentProvider en Studio; no requieren subir assets.
+]]
+
+local VisualConfig = {}
+
+local function particle(name: string): string
+	return "rbxasset://textures/particles/" .. name .. ".dds"
+end
+
+VisualConfig.Textures = {
+	Sparkle = particle("sparkles_main"),
+	Fire = particle("fire_main"),
+	FireSparks = particle("fire_sparks_main"),
+	Smoke = particle("smoke_main"),
+	Core = particle("explosion01_core_main"),
+	Shockwave = particle("explosion01_shockwave_main"),
+	Implosion = particle("explosion01_implosion_main"),
+	Glow = particle("forcefield_glow_main"),
+	Vortex = particle("forcefield_vortex_main"),
+}
+
+VisualConfig.Palette = {
+	Player = Color3.fromRGB(120, 235, 255),
+	PlayerCore = Color3.fromRGB(235, 252, 255),
+	Danger = Color3.fromRGB(255, 70, 90),
+	Void = Color3.fromRGB(132, 72, 214),
+	Reward = Color3.fromRGB(255, 196, 92),
+	Crit = Color3.fromRGB(255, 176, 64),
+}
+
+--[[
+	Niveles de calidad. El jugador alterna con la tecla G o el botón FX.
+	ParticleScale multiplica la emisión de todas las auras y ráfagas.
+]]
+VisualConfig.Quality = {
+	High = { ParticleScale = 1, EnemyAuras = true, Ambient = true, Lights = true, Speedlines = true },
+	Low = { ParticleScale = 0.35, EnemyAuras = false, Ambient = false, Lights = false, Speedlines = false },
+}
+VisualConfig.DefaultQuality = "High"
+
+--[[
+	Perfiles de aura. Capas (todas opcionales):
+	  Rise    partículas que suben (llamas, motas)
+	  Orbit   motas que giran alrededor (velocidad angular)
+	  Sparks  chispas rápidas en ráfagas
+	  Ring    anillo en el suelo que pulsa (Pulse = segundos por pulso)
+	  Light   luz puntual (solo calidad alta y en el jugador o jefes)
+	MaxDistance: más lejos de la cámara la aura se apaga (rendimiento).
+]]
+VisualConfig.Auras = {
+	Electric = {
+		Color = Color3.fromRGB(110, 200, 255),
+		Accent = Color3.fromRGB(235, 250, 255),
+		Radius = 2.6,
+		Rise = { Texture = "Sparkle", Rate = 16, Size = 0.5, Speed = 4, Lifetime = 0.5 },
+		Sparks = { Texture = "FireSparks", Rate = 22, Size = 0.35, Speed = 9, Lifetime = 0.18 },
+		Ring = { Pulse = 0.9, Size = 6.5, Transparency = 0.55 },
+		Light = { Brightness = 1.2, Range = 10 },
+		MaxDistance = 140,
+	},
+	Fire = {
+		Color = Color3.fromRGB(255, 100, 60),
+		Accent = Color3.fromRGB(255, 210, 120),
+		Radius = 2.4,
+		Rise = { Texture = "Fire", Rate = 22, Size = 1.4, Speed = 6, Lifetime = 0.55 },
+		Sparks = { Texture = "FireSparks", Rate = 10, Size = 0.3, Speed = 7, Lifetime = 0.5 },
+		Ring = { Pulse = 1.2, Size = 6, Transparency = 0.6 },
+		Light = { Brightness = 1.4, Range = 10 },
+		MaxDistance = 140,
+	},
+	Arcane = {
+		Color = Color3.fromRGB(176, 110, 255),
+		Accent = Color3.fromRGB(240, 200, 255),
+		Radius = 2.8,
+		Rise = { Texture = "Smoke", Rate = 8, Size = 2, Speed = 1.5, Lifetime = 1.1 },
+		Orbit = { Texture = "Sparkle", Rate = 12, Size = 0.45, Speed = 3, Lifetime = 1.2, Spin = 2.2 },
+		Ring = { Pulse = 1.6, Size = 7, Transparency = 0.6 },
+		Light = { Brightness = 1, Range = 9 },
+		MaxDistance = 140,
+	},
+	Celestial = {
+		Color = Color3.fromRGB(255, 214, 110),
+		Accent = Color3.fromRGB(255, 250, 220),
+		Radius = 2.8,
+		Rise = { Texture = "Sparkle", Rate = 18, Size = 0.6, Speed = 3, Lifetime = 1 },
+		Orbit = { Texture = "Glow", Rate = 6, Size = 0.9, Speed = 1, Lifetime = 1.4, Spin = 1.4 },
+		Ring = { Pulse = 1.1, Size = 7.5, Transparency = 0.45, Double = true },
+		Light = { Brightness = 1.6, Range = 12 },
+		MaxDistance = 160,
+	},
+	Void = {
+		Color = Color3.fromRGB(70, 30, 110),
+		Accent = Color3.fromRGB(255, 80, 120),
+		Radius = 2.6,
+		Rise = { Texture = "Smoke", Rate = 14, Size = 2.4, Speed = 2, Lifetime = 0.9, Dark = true },
+		Sparks = { Texture = "Sparkle", Rate = 8, Size = 0.4, Speed = 5, Lifetime = 0.4 },
+		Ring = { Pulse = 0.7, Size = 6, Transparency = 0.5 },
+		MaxDistance = 140,
+	},
+	-- Violeta y oro: contrasta con el rojo de las zonas de peligro (nunca se confunden).
+	Boss = {
+		Color = Color3.fromRGB(130, 70, 235),
+		Accent = Color3.fromRGB(255, 205, 100),
+		Radius = 5,
+		Rise = { Texture = "Fire", Rate = 22, Size = 3, Speed = 7, Lifetime = 0.8 },
+		Orbit = { Texture = "Sparkle", Rate = 14, Size = 0.8, Speed = 2, Lifetime = 1.2, Spin = 1.6 },
+		Sparks = { Texture = "FireSparks", Rate = 12, Size = 0.5, Speed = 10, Lifetime = 0.4 },
+		Ring = { Pulse = 0.8, Size = 13, Transparency = 0.72, Double = true },
+		Light = { Brightness = 1.1, Range = 14 },
+		MaxDistance = 220,
+	},
+}
+
+-- Qué aura lleva el jugador según su build real (estadísticas del HUD).
+VisualConfig.PlayerAuraRules = {
+	CriticalHealthPct = 0.3, -- por debajo: aura de Vacío (vida crítica)
+	ChainForElectric = 1, -- saltos de rayo para el aura Eléctrica
+	CritPctForFire = 24, -- % de crítico para el aura Ígnea
+	XpBonusForArcane = 20, -- % de bonus de XP (o Suerte ≥ 2) para la Arcana
+	DefenseForCelestial = 2, -- regeneración o reducción ≥ 20 %
+	LevelUpBurst = 2.2, -- segundos de aura Celestial al subir de nivel
+	Default = "Electric", -- la Espada del Vendaval es de viento/tormenta
+}
+
+-- Animaciones del personaje: paquete «Ninja», propiedad de Roblox (creador 1).
+VisualConfig.PlayerAnimations = {
+	idle = { Animation1 = "rbxassetid://656117400", Animation2 = "rbxassetid://656118341" },
+	walk = { WalkAnim = "rbxassetid://656121766" },
+	run = { RunAnim = "rbxassetid://656118852" },
+	jump = { JumpAnim = "rbxassetid://656117878" },
+	fall = { FallAnim = "rbxassetid://656115606" },
+}
+
+-- Movimiento procedural del personaje (cliente, solo visual).
+VisualConfig.Motion = {
+	MaxLean = math.rad(14), -- inclinación máxima al girar o frenar
+	LeanResponsiveness = 9,
+	SpeedlineSpeed = 19, -- studs/s a partir de los que aparecen líneas de velocidad
+	LandingMinFall = 18, -- velocidad vertical mínima para el polvo al aterrizar
+	HitRecoil = math.rad(10),
+}
+
+-- Cámara: todos los cambios son temporales y se restauran.
+VisualConfig.Camera = {
+	CritFovKick = 3,
+	LevelUpFovKick = 5,
+	BossFovKick = 6,
+	FovRecover = 0.35,
+	LetterboxTime = 2.2,
+}
+
+-- Convenciones de armas (ver docs/ART_DIRECTION.md §5).
+VisualConfig.Weapons = {
+	GaleSword = {
+		Family = "Viento",
+		Blade = Color3.fromRGB(170, 245, 255),
+		Edge = Color3.fromRGB(120, 235, 255),
+		Guard = Color3.fromRGB(230, 196, 110),
+		Slash = Color3.fromRGB(150, 240, 255),
+		SlashCrit = Color3.fromRGB(255, 200, 90),
+	},
+}
+
+-- Zonas del mapa: paletas propias (MapBuilder) y región aproximada (cliente:
+-- pétalos, gradación de color). Center/Radius en planta.
+VisualConfig.Zones = {
+	Forest = {
+		Center = Vector3.new(-38, 0, -58),
+		Radius = 38,
+		Leaf = Color3.fromRGB(255, 160, 205),
+		Grass = Color3.fromRGB(110, 196, 92),
+		Lantern = Color3.fromRGB(255, 170, 90),
+		Tint = Color3.fromRGB(255, 240, 246),
+	},
+	Corrupted = {
+		Center = Vector3.new(44, 0, -48),
+		Radius = 34,
+		Tint = Color3.fromRGB(236, 222, 255),
+		Rock = Color3.fromRGB(70, 54, 86),
+		Crystal = Color3.fromRGB(200, 40, 90),
+		Crystal2 = Color3.fromRGB(150, 70, 255),
+		Grass = Color3.fromRGB(86, 96, 92),
+	},
+	Celestial = {
+		Center = Vector3.new(0, 2, 120),
+		Radius = 26,
+		Tint = Color3.fromRGB(255, 246, 228),
+		Stone = Color3.fromRGB(245, 240, 228),
+		Gold = Color3.fromRGB(255, 205, 110),
+		Torii = Color3.fromRGB(214, 52, 52),
+	},
+	Ruins = {
+		Center = Vector3.new(62, 7, 40),
+		Radius = 24,
+		Tint = Color3.fromRGB(240, 250, 255),
+		Stone = Color3.fromRGB(230, 222, 204),
+		Rune = Color3.fromRGB(110, 220, 255),
+	},
+}
+
+-- Ciclo local de luz (solo cliente): oscila entre la tarde y el atardecer dorado.
+VisualConfig.DayCycle = { From = 14.6, To = 17.5, Period = 420 }
+
+return VisualConfig
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="9">
+          <Properties>
             <string name="Name">WeaponConfig</string>
             <string name="Source"><![CDATA[--!strict
 --[[
@@ -643,7 +861,7 @@ return WeaponConfig
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="9">
+      <Item class="ModuleScript" referent="10">
         <Properties>
           <string name="Name">Net</string>
           <string name="Source"><![CDATA[--[[
@@ -700,7 +918,7 @@ return Net
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="10">
+      <Item class="ModuleScript" referent="11">
         <Properties>
           <string name="Name">Progression</string>
           <string name="Source"><![CDATA[--!strict
@@ -725,82 +943,82 @@ return Progression
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="11">
+      <Item class="Folder" referent="12">
         <Properties>
           <string name="Name">Remotes</string>
         </Properties>
-        <Item class="RemoteEvent" referent="12">
+        <Item class="RemoteEvent" referent="13">
           <Properties>
             <string name="Name">ChooseUpgrade</string>
           </Properties>
         </Item>
-        <Item class="RemoteEvent" referent="13">
+        <Item class="RemoteEvent" referent="14">
           <Properties>
             <string name="Name">ClientReady</string>
           </Properties>
         </Item>
-        <Item class="RemoteEvent" referent="14">
+        <Item class="RemoteEvent" referent="15">
           <Properties>
             <string name="Name">CombatFx</string>
           </Properties>
         </Item>
-        <Item class="RemoteEvent" referent="15">
+        <Item class="RemoteEvent" referent="16">
           <Properties>
             <string name="Name">CombatHits</string>
           </Properties>
         </Item>
-        <Item class="RemoteEvent" referent="16">
+        <Item class="RemoteEvent" referent="17">
           <Properties>
             <string name="Name">EnemyDied</string>
           </Properties>
         </Item>
-        <Item class="RemoteEvent" referent="17">
+        <Item class="RemoteEvent" referent="18">
           <Properties>
             <string name="Name">GameOver</string>
           </Properties>
         </Item>
-        <Item class="RemoteEvent" referent="18">
+        <Item class="RemoteEvent" referent="19">
           <Properties>
             <string name="Name">GemCollected</string>
           </Properties>
         </Item>
-        <Item class="RemoteEvent" referent="19">
+        <Item class="RemoteEvent" referent="20">
           <Properties>
             <string name="Name">HudUpdate</string>
           </Properties>
         </Item>
-        <Item class="RemoteEvent" referent="20">
+        <Item class="RemoteEvent" referent="21">
           <Properties>
             <string name="Name">LevelUp</string>
           </Properties>
         </Item>
-        <Item class="RemoteEvent" referent="21">
+        <Item class="RemoteEvent" referent="22">
           <Properties>
             <string name="Name">PlayerDamaged</string>
           </Properties>
         </Item>
-        <Item class="RemoteEvent" referent="22">
+        <Item class="RemoteEvent" referent="23">
           <Properties>
             <string name="Name">RequestRestart</string>
           </Properties>
         </Item>
-        <Item class="RemoteEvent" referent="23">
+        <Item class="RemoteEvent" referent="24">
           <Properties>
             <string name="Name">UpgradeOffer</string>
           </Properties>
         </Item>
-        <Item class="RemoteEvent" referent="24">
+        <Item class="RemoteEvent" referent="25">
           <Properties>
             <string name="Name">UpgradeResolved</string>
           </Properties>
         </Item>
-        <Item class="RemoteEvent" referent="25">
+        <Item class="RemoteEvent" referent="26">
           <Properties>
             <string name="Name">WorldFx</string>
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="26">
+      <Item class="ModuleScript" referent="27">
         <Properties>
           <string name="Name">Signal</string>
           <string name="Source"><![CDATA[--!strict
@@ -884,7 +1102,7 @@ return Signal
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="27">
+      <Item class="ModuleScript" referent="28">
         <Properties>
           <string name="Name">Types</string>
           <string name="Source"><![CDATA[--!strict
@@ -1079,11 +1297,11 @@ return {}
       </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="28">
+  <Item class="ServerScriptService" referent="29">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Script" referent="29">
+    <Item class="Script" referent="30">
       <Properties>
         <string name="Name">Bootstrap</string>
         <token name="RunContext">0</token>
@@ -1222,7 +1440,15 @@ if RunService:IsStudio() then
 				local spawned = 0
 				for _ = 1, count or 1 do
 					local position = services.SpawnService.FindSpawnPosition(run)
-					if position and services.EnemyService.Spawn(run, enemyId, position, services.SpawnService.DifficultyAt(run.State.Elapsed)) then
+					if
+						position
+						and services.EnemyService.Spawn(
+							run,
+							enemyId,
+							position,
+							services.SpawnService.DifficultyAt(run.State.Elapsed)
+						)
+					then
 						spawned += 1
 					end
 				end
@@ -1261,6 +1487,7 @@ if RunService:IsStudio() then
 		local bindable = Instance.new("BindableFunction")
 		bindable.Name = "SkyBonkDebug"
 		bindable.OnInvoke = function(command: string, ...)
+			-- selene: allow(global_usage)
 			local fn = _G.SkyBonkDebug[command]
 			if fn == nil then
 				return "comando desconocido: " .. tostring(command)
@@ -1273,11 +1500,11 @@ end
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Folder" referent="30">
+    <Item class="Folder" referent="31">
       <Properties>
         <string name="Name">Logic</string>
       </Properties>
-      <Item class="ModuleScript" referent="31">
+      <Item class="ModuleScript" referent="32">
         <Properties>
           <string name="Name">LevelLogic</string>
           <string name="Source"><![CDATA[--!strict
@@ -1340,7 +1567,7 @@ return LevelLogic
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="32">
+      <Item class="ModuleScript" referent="33">
         <Properties>
           <string name="Name">RateLimiter</string>
           <string name="Source"><![CDATA[--!strict
@@ -1397,7 +1624,7 @@ return RateLimiter
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="33">
+      <Item class="ModuleScript" referent="34">
         <Properties>
           <string name="Name">RunState</string>
           <string name="Source"><![CDATA[--!strict
@@ -1572,7 +1799,7 @@ return RunState
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="34">
+      <Item class="ModuleScript" referent="35">
         <Properties>
           <string name="Name">StatSheet</string>
           <string name="Source"><![CDATA[--!strict
@@ -1704,7 +1931,7 @@ return StatSheet
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="35">
+      <Item class="ModuleScript" referent="36">
         <Properties>
           <string name="Name">Targeting</string>
           <string name="Source"><![CDATA[--!strict
@@ -1774,7 +2001,7 @@ return Targeting
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="36">
+      <Item class="ModuleScript" referent="37">
         <Properties>
           <string name="Name">UpgradeLogic</string>
           <string name="Source"><![CDATA[--!strict
@@ -1950,7 +2177,7 @@ return UpgradeLogic
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="37">
+      <Item class="ModuleScript" referent="38">
         <Properties>
           <string name="Name">Validation</string>
           <string name="Source"><![CDATA[--!strict
@@ -1986,7 +2213,7 @@ return Validation
         </Properties>
       </Item>
     </Item>
-    <Item class="ModuleScript" referent="38">
+    <Item class="ModuleScript" referent="39">
       <Properties>
         <string name="Name">ServerTypes</string>
         <string name="Source"><![CDATA[--!strict
@@ -2064,11 +2291,11 @@ return {}
 ]]></string>
       </Properties>
     </Item>
-    <Item class="Folder" referent="39">
+    <Item class="Folder" referent="40">
       <Properties>
         <string name="Name">Services</string>
       </Properties>
-      <Item class="ModuleScript" referent="40">
+      <Item class="ModuleScript" referent="41">
         <Properties>
           <string name="Name">CombatService</string>
           <string name="Source"><![CDATA[--[[
@@ -2324,7 +2551,7 @@ return CombatService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="41">
+      <Item class="ModuleScript" referent="42">
         <Properties>
           <string name="Name">EnemyService</string>
           <string name="Source"><![CDATA[--[[
@@ -2907,7 +3134,7 @@ return EnemyService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="42">
+      <Item class="ModuleScript" referent="43">
         <Properties>
           <string name="Name">ExperienceService</string>
           <string name="Source"><![CDATA[--[[
@@ -3200,7 +3427,7 @@ return ExperienceService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="43">
+      <Item class="ModuleScript" referent="44">
         <Properties>
           <string name="Name">LevelService</string>
           <string name="Source"><![CDATA[--[[
@@ -3256,7 +3483,7 @@ return LevelService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="44">
+      <Item class="ModuleScript" referent="45">
         <Properties>
           <string name="Name">MatchService</string>
           <string name="Source"><![CDATA[--[[
@@ -3278,6 +3505,7 @@ local RunService = game:GetService("RunService")
 local Shared = ReplicatedStorage.Shared
 local GameConfig = require(Shared.Config.GameConfig)
 local Progression = require(Shared.Progression)
+local VisualConfig = require(Shared.Config.VisualConfig)
 local Net = require(Shared.Net)
 local Types = require(Shared.Types)
 
@@ -3314,6 +3542,32 @@ local function setCharacterCollisionGroup(character: Model)
 	for _, descendant in character:GetDescendants() do
 		if descendant:IsA("BasePart") then
 			descendant.CollisionGroup = "Players"
+		end
+	end
+end
+
+--[[
+	Paquete de animaciones del personaje (VisualConfig.PlayerAnimations, de
+	Roblox). Se cambian los AnimationId del script Animate estándar, que recarga
+	sus pistas al detectar el cambio. Solo R15 (los ids son de R15).
+]]
+local function applyAnimationPack(character: Model, humanoid: Humanoid)
+	if humanoid.RigType ~= Enum.HumanoidRigType.R15 then
+		return
+	end
+	local animate = character:FindFirstChild("Animate")
+	if animate == nil then
+		return
+	end
+	for stateName, animations in VisualConfig.PlayerAnimations do
+		local state = animate:FindFirstChild(stateName)
+		if state then
+			for animationName, id in animations do
+				local animation = state:FindFirstChild(animationName)
+				if animation and animation:IsA("Animation") then
+					animation.AnimationId = id
+				end
+			end
 		end
 	end
 end
@@ -3412,7 +3666,8 @@ function MatchService.DamagePlayer(run: Run, rawDamage: number, ignoreReduction:
 	end
 	humanoid.Health = math.max(0, humanoid.Health - amount)
 	if not ignoreReduction then
-		run.InvulnerableUntil = math.max(run.InvulnerableUntil, run.State.Elapsed + GameConfig.Player.HitInvulnerability)
+		run.InvulnerableUntil =
+			math.max(run.InvulnerableUntil, run.State.Elapsed + GameConfig.Player.HitInvulnerability)
 	end
 	Net.PlayerDamaged:FireClient(run.Player, {
 		Amount = amount,
@@ -3509,6 +3764,7 @@ function MatchService.StartRun(player: Player)
 	humanoid.Health = humanoid.MaxHealth
 	humanoid.WalkSpeed = StatSheet.walkSpeed(run.State.Stats)
 	setCharacterCollisionGroup(character)
+	applyAnimationPack(character, humanoid)
 	-- Espada del Vendaval visible en la mano (solo decorativa: el daño lo calcula CombatService).
 	local hand = character:FindFirstChild("RightHand") or character:FindFirstChild("Right Arm")
 	if hand and hand:IsA("BasePart") then
@@ -3677,7 +3933,7 @@ return MatchService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="45">
+      <Item class="ModuleScript" referent="46">
         <Properties>
           <string name="Name">SpawnService</string>
           <string name="Source"><![CDATA[--[[
@@ -3863,7 +4119,7 @@ return SpawnService
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="46">
+      <Item class="ModuleScript" referent="47">
         <Properties>
           <string name="Name">UpgradeService</string>
           <string name="Source"><![CDATA[--[[
@@ -3983,11 +4239,11 @@ return UpgradeService
         </Properties>
       </Item>
     </Item>
-    <Item class="Folder" referent="47">
+    <Item class="Folder" referent="48">
       <Properties>
         <string name="Name">Tests</string>
       </Properties>
-      <Item class="ModuleScript" referent="48">
+      <Item class="ModuleScript" referent="49">
         <Properties>
           <string name="Name">Progression.spec</string>
           <string name="Source"><![CDATA[-- Prueba D (curva y niveles): experiencia sobrante, varios niveles, sin duplicados.
@@ -4051,7 +4307,7 @@ end
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="49">
+      <Item class="ModuleScript" referent="50">
         <Properties>
           <string name="Name">TestRunner</string>
           <string name="Source"><![CDATA[--[[
@@ -4148,7 +4404,7 @@ return TestRunner
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="50">
+      <Item class="ModuleScript" referent="51">
         <Properties>
           <string name="Name">Upgrades.spec</string>
           <string name="Source"><![CDATA[-- Pruebas D, E y G (ofertas, aplicación de mejoras y validación de elecciones).
@@ -4444,7 +4700,7 @@ end
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="51">
+      <Item class="ModuleScript" referent="52">
         <Properties>
           <string name="Name">Utilities.spec</string>
           <string name="Source"><![CDATA[-- Prueba B (selección de objetivos) y G (validación y límite de frecuencia).
@@ -4514,7 +4770,7 @@ end
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="52">
+      <Item class="ModuleScript" referent="53">
         <Properties>
           <string name="Name">World.spec</string>
           <string name="Source"><![CDATA[-- Prueba A (mapa válido) y comprobaciones de la plantilla del enemigo.
@@ -4655,11 +4911,11 @@ end
         </Properties>
       </Item>
     </Item>
-    <Item class="Folder" referent="53">
+    <Item class="Folder" referent="54">
       <Properties>
         <string name="Name">World</string>
       </Properties>
-      <Item class="ModuleScript" referent="54">
+      <Item class="ModuleScript" referent="55">
         <Properties>
           <string name="Name">MapBuilder</string>
           <string name="Source"><![CDATA[--[[
@@ -4695,6 +4951,7 @@ end
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local MapLayout = require(script.Parent.MapLayout)
+local VisualConfig = require(ReplicatedStorage.Shared.Config.VisualConfig)
 
 local MapBuilder = {}
 
@@ -4907,13 +5164,15 @@ local KIT: { [string]: KitSpec } = {
 	},
 	Spire = {
 		Asset = "Rock_",
-		Scale = { 1.5, 2.1 },
+		Scale = { 1.25, 1.75 },
 		Collider = { Kind = "Box", Radius = 0.72, Height = 0.9 },
 		Fallback = "Rock",
 	},
 }
 
 local kitFolder: Instance? = nil
+-- Si se fija, las rocas del kit usan este color (Jardín Corrompido).
+local rockTintOverride: Color3? = nil
 
 local function findKit(): Instance?
 	local ok, serverStorage = pcall(function()
@@ -4995,7 +5254,8 @@ local function placeKit(kind: string, position: Vector3, rng, decor: Instance, p
 		model:PivotTo(CFrame.new(position) * CFrame.Angles(0, yaw, 0))
 		if spec.Fallback == "Rock" then
 			-- Las rocas del pack son blanco azuladas: se tiñen con la paleta cálida de la isla.
-			local tint = rng.pick({ PALETTE.Rock1, PALETTE.Rock2, PALETTE.Cliff, PALETTE.StoneDark })
+			local tint = rockTintOverride
+				or rng.pick({ PALETTE.Rock1, PALETTE.Rock2, PALETTE.Cliff, PALETTE.StoneDark })
 			for _, part in model:GetDescendants() do
 				if part:IsA("MeshPart") and part.TextureID == "" then
 					part.Color = tint
@@ -5007,6 +5267,9 @@ local function placeKit(kind: string, position: Vector3, rng, decor: Instance, p
 		if typeof(baseSize) == "Vector3" then
 			size = baseSize * scale
 		end
+		-- Para el atenuado por oclusión del cliente (AmbientController).
+		model:SetAttribute("KitRadius", math.max(size.X, size.Z) / 2)
+		model:SetAttribute("KitHeight", size.Y)
 		model.Parent = decor
 	else
 		fallbackShape(spec.Fallback, position, scale, yaw, decor, rng)
@@ -5208,6 +5471,9 @@ local function buildIsland(ground: Folder, props: Folder, rng)
 	for index, lobe in MapLayout.Lobes do
 		local top = SURFACE_Y + (index - 1) * 0.02
 		local grass = if index % 2 == 0 then PALETTE.GrassAlt else PALETTE.Grass
+		if index == 5 then
+			grass = VisualConfig.Zones.Corrupted.Grass -- Jardín Corrompido (SE)
+		end
 		polygonLayer(
 			ground,
 			"Lobe" .. index .. "Surface",
@@ -5444,6 +5710,18 @@ local function buildMesa(ground: Folder, props: Folder, mesa: MapLayout.Mesa, rn
 	end
 end
 
+-- Dirección de los escalones de piedra de las Ruinas (acceso alternativo).
+local RUINS_STEP_DIR = Vector3.new(0.45, 0, 1).Unit
+
+-- Reserva el pasillo de los escalones antes de colocar rocas al pie de la
+-- meseta (una roca allí formaba un hueco del que no se podía salir).
+local function reserveRuinsSteps()
+	local mesa = MapLayout.mesaById("Ruins") :: MapLayout.Mesa
+	for distance = mesa.Radius - 1, mesa.Radius + 12, 2.5 do
+		reserve(mesa.Center + RUINS_STEP_DIR * distance, 9)
+	end
+end
+
 local function buildRuins(ground: Folder, props: Folder, decor: Folder, rng)
 	local mesa = MapLayout.mesaById("Ruins") :: MapLayout.Mesa
 	local top = SURFACE_Y + mesa.Height
@@ -5473,9 +5751,24 @@ local function buildRuins(ground: Folder, props: Folder, decor: Folder, rng)
 			Shape = Enum.PartType.Cylinder,
 			Size = Vector3.new(height, 2.3, 2.3),
 			CFrame = CFrame.new(base + Vector3.new(0, 0.8 + height / 2, 0)) * CFrame.Angles(0, 0, math.pi / 2),
-			Color = PALETTE.Stone,
+			Color = VisualConfig.Zones.Ruins.Stone,
 			Material = Enum.Material.Limestone,
 		}, props)
+		-- Runa vertical luminosa en la cara que mira al patio.
+		local runeCenter = base + Vector3.new(0, 0.8 + height / 2, 0)
+		newPart(
+			"Part",
+			decorProps({
+				Name = "ColumnRune",
+				Size = Vector3.new(0.3, height * 0.6, 0.12),
+				CFrame = CFrame.lookAt(runeCenter, Vector3.new(center.X, runeCenter.Y, center.Z))
+					* CFrame.new(0, 0, -1.16),
+				Color = VisualConfig.Zones.Ruins.Rune,
+				Material = Enum.Material.Neon,
+				CastShadow = false,
+			}),
+			decor
+		)
 		if broken then
 			newPart(
 				"Part",
@@ -5555,7 +5848,7 @@ local function buildRuins(ground: Folder, props: Folder, decor: Folder, rng)
 		reserve(position, 4)
 	end
 	-- Escalones de piedra (acceso alternativo saltando, ~2,3 studs cada uno).
-	local stepDir = Vector3.new(0.45, 0, 1).Unit
+	local stepDir = RUINS_STEP_DIR
 	for i = 1, 3 do
 		local position = mesa.Center + stepDir * (mesa.Radius + 7.5 - i * 2.6)
 		local height = i * 2.3
@@ -5641,9 +5934,9 @@ local function buildSanctuary(ground: Folder, props: Folder, decor: Folder, rng)
 		s.Radius,
 		top,
 		4,
-		PALETTE.GrassDark,
+		VisualConfig.Zones.Celestial.Stone,
 		s.Angle,
-		Enum.Material.Grass
+		Enum.Material.Marble
 	)
 	polygonLayer(
 		ground,
@@ -5849,6 +6142,308 @@ local function buildPond(decor: Folder, center: Vector3, radius: number)
 	reserve(center, radius + 1)
 end
 
+------------------------------------------------------------ Zonas (Fase 2.5)
+-- Farolillo de piedra con luz cálida (Bosque Sakura).
+local function buildLantern(props: Folder, decor: Folder, base: Vector3, withLight: boolean)
+	local zone = VisualConfig.Zones.Forest
+	newPart("Part", {
+		Name = "LanternBase",
+		Size = Vector3.new(1.6, 0.6, 1.6),
+		CFrame = CFrame.new(base + Vector3.new(0, 0.3, 0)),
+		Color = PALETTE.StoneDark,
+		Material = Enum.Material.Slate,
+	}, props)
+	newPart("Part", {
+		Name = "LanternPost",
+		Size = Vector3.new(0.6, 2.4, 0.6),
+		CFrame = CFrame.new(base + Vector3.new(0, 1.8, 0)),
+		Color = PALETTE.Stone,
+		Material = Enum.Material.Slate,
+	}, props)
+	local lamp = newPart(
+		"Part",
+		decorProps({
+			Name = "LanternLamp",
+			Size = Vector3.new(1.2, 1, 1.2),
+			CFrame = CFrame.new(base + Vector3.new(0, 3.5, 0)),
+			Color = zone.Lantern,
+			Material = Enum.Material.Neon,
+			CastShadow = false,
+		}),
+		decor
+	)
+	for _, sign in { 1, -1 } do
+		newPart(
+			"WedgePart",
+			decorProps({
+				Name = "LanternRoof",
+				Size = Vector3.new(2, 0.6, 1),
+				CFrame = CFrame.new(base + Vector3.new(0, 4.3, 0.5 * sign))
+					* CFrame.Angles(0, if sign > 0 then 0 else math.pi, 0),
+				Color = PALETTE.StoneDark,
+				Material = Enum.Material.Slate,
+			}),
+			decor
+		)
+	end
+	if withLight then
+		local light = Instance.new("PointLight")
+		light.Color = zone.Lantern
+		light.Range = 14
+		light.Brightness = 1.4
+		light.Shadows = false
+		light.Parent = lamp
+	end
+	reserve(base, 2)
+end
+
+-- Emisor ambiental (pétalos, luciérnagas, humo): el cliente lo apaga en calidad baja.
+local function ambientEmitter(decor: Folder, name: string, cframe: CFrame, size: Vector3, props: { [string]: any })
+	local holder = newPart(
+		"Part",
+		decorProps({
+			Name = name,
+			Size = size,
+			CFrame = cframe,
+			Transparency = 1,
+			CastShadow = false,
+		}),
+		decor
+	)
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Name = name .. "Emitter"
+	emitter.LightInfluence = 0
+	for key, value in props do
+		(emitter :: any)[key] = value
+	end
+	emitter:SetAttribute("Ambient", true)
+	emitter.Parent = holder
+	return emitter
+end
+
+-- Torii en la llegada del puente al Santuario Celestial (fuera del ancho caminable).
+local function buildTorii(props: Folder, decor: Folder, base: Vector3, facing: Vector3)
+	local zone = VisualConfig.Zones.Celestial
+	local dark = Color3.fromRGB(34, 26, 30)
+	local side = Vector3.new(-facing.Z, 0, facing.X)
+	local orientation = CFrame.lookAt(base, base + facing)
+	for _, sign in { -1, 1 } do
+		local foot = base + side * sign * 6
+		newPart("Part", {
+			Name = "ToriiPillar",
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(11, 1.3, 1.3),
+			CFrame = CFrame.new(foot + Vector3.new(0, 5.5, 0)) * CFrame.Angles(0, 0, math.pi / 2),
+			Color = zone.Torii,
+		}, props)
+		newPart("Part", {
+			Name = "ToriiFoot",
+			Size = Vector3.new(1.8, 0.8, 1.8),
+			CFrame = CFrame.new(foot + Vector3.new(0, 0.4, 0)),
+			Color = dark,
+			Material = Enum.Material.Slate,
+		}, props)
+	end
+	-- Travesaño inferior (nuki), superior (kasagi) y puntas levantadas.
+	local beams = {
+		{ "ToriiNuki", Vector3.new(14, 0.7, 0.8), 8.4, zone.Torii },
+		{ "ToriiShimaki", Vector3.new(15, 0.6, 1.2), 10.1, zone.Torii },
+		{ "ToriiKasagi", Vector3.new(16, 0.9, 1.4), 10.8, dark },
+	}
+	for _, info in beams do
+		newPart(
+			"Part",
+			decorProps({
+				Name = info[1],
+				Size = info[2],
+				CFrame = orientation * CFrame.new(0, info[3], 0),
+				Color = info[4],
+			}),
+			decor
+		)
+	end
+	for _, sign in { -1, 1 } do
+		newPart(
+			"WedgePart",
+			decorProps({
+				Name = "ToriiTip",
+				Size = Vector3.new(1.4, 0.8, 1.6),
+				CFrame = orientation * CFrame.new(sign * 8.6, 11.1, 0) * CFrame.Angles(0, sign * math.pi / 2, 0),
+				Color = dark,
+			}),
+			decor
+		)
+	end
+	newPart(
+		"Part",
+		decorProps({
+			Name = "ToriiPlaque",
+			Size = Vector3.new(1.6, 2, 0.3),
+			CFrame = orientation * CFrame.new(0, 9.3, 0),
+			Color = zone.Gold,
+			Material = Enum.Material.Neon,
+			CastShadow = false,
+		}),
+		decor
+	)
+end
+
+--[[
+	Cascada que cae desde el borde de la isla al vacío: un arroyo sobre el
+	borde y dos haces (Beam) con textura en movimiento, más espuma arriba y
+	bruma abajo. Todo decorativo.
+]]
+local function buildWaterfall(decor: Folder, spring: Vector3, edge: Vector3, height: number)
+	local horizontal = flat(edge) - flat(spring)
+	local direction = horizontal.Unit
+	local streamStart = flat(spring) + Vector3.new(0, SURFACE_Y + 0.1, 0)
+	local streamEnd = flat(edge) + Vector3.new(0, SURFACE_Y + 0.1, 0)
+	newPart(
+		"Part",
+		decorProps({
+			Name = "Stream",
+			Size = Vector3.new(3.4, 0.16, horizontal.Magnitude),
+			CFrame = CFrame.lookAt((streamStart + streamEnd) / 2, streamEnd),
+			Color = PALETTE.Water,
+			Material = Enum.Material.Glass,
+			Transparency = 0.2,
+			Reflectance = 0.1,
+		}),
+		decor
+	)
+	local topPosition = flat(edge) + direction * 3.5 + Vector3.new(0, SURFACE_Y - 0.4, 0)
+	local top = newPart(
+		"Part",
+		decorProps({
+			Name = "WaterfallTop",
+			Size = Vector3.new(1, 1, 1),
+			CFrame = CFrame.lookAt(topPosition, topPosition + direction),
+			Transparency = 1,
+		}),
+		decor
+	)
+	local a0 = Instance.new("Attachment")
+	a0.Parent = top
+	local a1 = Instance.new("Attachment")
+	a1.Position = Vector3.new(0, -height, -6) -- cae algo hacia fuera, despegada del acantilado
+	a1.Parent = top
+	-- Capa 1: lámina continua (sin textura). Capa 2: reflejos que fluyen hacia abajo.
+	local layers = {
+		{ Width = 5.5, Texture = "", Length = 1, Speed = 0, Transparency = 0.3, Light = 0.25 },
+		{
+			Width = 3.6,
+			Texture = VisualConfig.Textures.Glow,
+			Length = 2.6,
+			Speed = 3.2,
+			Transparency = 0.25,
+			Light = 0.7,
+		},
+	}
+	for index, layer in layers do
+		local beam = Instance.new("Beam")
+		beam.Name = "Waterfall" .. index
+		beam.Attachment0 = a0
+		beam.Attachment1 = a1
+		beam.Texture = layer.Texture
+		beam.TextureMode = Enum.TextureMode.Wrap
+		beam.TextureLength = layer.Length
+		beam.TextureSpeed = layer.Speed
+		beam.Width0 = layer.Width
+		beam.Width1 = layer.Width * 1.7
+		beam.FaceCamera = true
+		beam.LightEmission = layer.Light
+		beam.LightInfluence = 0.5
+		beam.Segments = 12
+		beam.Color = ColorSequence.new(Color3.fromRGB(235, 250, 255), PALETTE.Water)
+		beam.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, layer.Transparency),
+			NumberSequenceKeypoint.new(0.6, layer.Transparency + 0.15),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+		beam.Parent = top
+	end
+	ambientEmitter(decor, "WaterfallFoam", CFrame.new(topPosition), Vector3.new(4, 0.5, 2), {
+		Texture = VisualConfig.Textures.Smoke,
+		Color = ColorSequence.new(Color3.new(1, 1, 1)),
+		Size = NumberSequence.new(1.2, 2.8),
+		Transparency = NumberSequence.new(0.5, 1),
+		Lifetime = NumberRange.new(0.6, 1),
+		Speed = NumberRange.new(1, 3),
+		Rate = 10,
+		SpreadAngle = Vector2.new(40, 40),
+	})
+	ambientEmitter(
+		decor,
+		"WaterfallMist",
+		CFrame.new(topPosition + direction * 2 - Vector3.new(0, height * 0.7, 0)),
+		Vector3.new(8, 4, 8),
+		{
+			Texture = VisualConfig.Textures.Smoke,
+			Color = ColorSequence.new(Color3.fromRGB(230, 245, 255)),
+			Size = NumberSequence.new(4, 9),
+			Transparency = NumberSequence.new(0.6, 1),
+			Lifetime = NumberRange.new(2, 3),
+			Speed = NumberRange.new(0.5, 1.5),
+			Rate = 4,
+		}
+	)
+	reserve(spring, 4)
+	reserveSegment(spring, edge, 3)
+end
+
+-- Jardín Corrompido: grietas de vacío y cristales rojo/violeta con humo oscuro.
+local function buildCorruption(decor: Folder, center: Vector3, rng)
+	local zone = VisualConfig.Zones.Corrupted
+	for index = 1, 9 do
+		local angle = rng.range(0, TAU)
+		local distance = rng.range(6, 30)
+		local position =
+			Vector3.new(center.X + math.cos(angle) * distance, SURFACE_Y + 0.11, center.Z + math.sin(angle) * distance)
+		if not MapLayout.isWalkable(position, 3) then
+			continue
+		end
+		-- Grieta en zigzag: tres segmentos de neón finos a ras de suelo.
+		local previous = position
+		for _ = 1, 3 do
+			local nextPoint = previous + Vector3.new(rng.range(-3, 3), 0, rng.range(-3, 3))
+			newPart(
+				"Part",
+				decorProps({
+					Name = "VoidCrack",
+					Size = Vector3.new(0.3, 0.06, (nextPoint - previous).Magnitude + 0.2),
+					CFrame = CFrame.lookAt((previous + nextPoint) / 2, nextPoint),
+					Color = if index % 2 == 0 then zone.Crystal else zone.Crystal2,
+					Material = Enum.Material.Neon,
+					CastShadow = false,
+				}),
+				decor
+			)
+			previous = nextPoint
+		end
+	end
+	for index, spot in
+		{ Vector3.new(30, 0, -34), Vector3.new(60, 0, -36), Vector3.new(38, 0, -66), Vector3.new(64, 0, -52) }
+	do
+		local tint = if index % 2 == 0 then zone.Crystal else zone.Crystal2
+		local cluster = buildCrystalCluster(decor, "VoidCrystal" .. index, spot, rng, index <= 1, tint)
+		cluster:SetAttribute("Float", 0.25)
+		reserve(spot, 3)
+		if index <= 2 then
+			ambientEmitter(decor, "VoidSmoke", CFrame.new(spot + Vector3.new(0, 1, 0)), Vector3.new(3, 1, 3), {
+				Texture = VisualConfig.Textures.Smoke,
+				Color = ColorSequence.new(Color3.fromRGB(60, 20, 70)),
+				LightEmission = 0,
+				Size = NumberSequence.new(2, 4),
+				Transparency = NumberSequence.new(0.55, 1),
+				Lifetime = NumberRange.new(1.5, 2.5),
+				Speed = NumberRange.new(1, 2),
+				Rate = 3,
+				EmissionDirection = Enum.NormalId.Top,
+			})
+		end
+	end
+end
+
 -- Construye el mapa completo dentro de `parent` y devuelve la carpeta Map.
 function MapBuilder.build(parent: Instance): Folder
 	local rng = makeRng(GameConfig.Map.Seed)
@@ -5886,6 +6481,7 @@ function MapBuilder.build(parent: Instance): Folder
 	buildPath(decor, Vector3.new(-10, SURFACE_Y, -9), Vector3.new(-30, SURFACE_Y, -45), 4, rng)
 	buildPath(decor, Vector3.new(-12, SURFACE_Y, 8), Vector3.new(-40, SURFACE_Y, 26), 4, rng)
 
+	reserveRuinsSteps()
 	for _, mesa in MapLayout.Mesas do
 		buildMesa(ground, props, mesa, rng)
 	end
@@ -5905,8 +6501,15 @@ function MapBuilder.build(parent: Instance): Folder
 		buildCrystalCluster(decor, "ForestCrystal" .. index, spot, rng, index <= 2)
 		reserve(spot, 3)
 	end
+	-- Bosque Sakura: predominan los árboles en flor; farolillos en los claros.
+	for index, spot in
+		{ Vector3.new(-22, 0, -36), Vector3.new(-44, 0, -42), Vector3.new(-36, 0, -66), Vector3.new(-58, 0, -70) }
+	do
+		buildLantern(props, decor, spot, index % 2 == 1)
+	end
+	buildWaterfall(decor, Vector3.new(-62, SURFACE_Y, -50), Vector3.new(-79.5, SURFACE_Y, -51), 70)
 	scatter(
-		{ "TreeRound", "TreeNormal", "TreeTwist", "TreePine", "TreeBlossom" },
+		{ "TreeBlossom", "TreeBlossom", "TreeBlossom", "TreeRound", "TreeNormal", "TreePine" },
 		forest,
 		6,
 		34,
@@ -5924,10 +6527,37 @@ function MapBuilder.build(parent: Instance): Folder
 	scatter({ "GrassA", "GrassB", "GrassC", "BushSmall", "Rock" }, hills, 20, 40, 14, 3, rng, decor, props)
 	placeKit("TreeBlossom", Vector3.new(-60, SURFACE_Y + 4, 41), rng, decor, props, 1.3)
 
-	-- Jardín de Piedra (SE): agujas de roca entre las que se puede combatir.
+	-- Jardín Corrompido (SE): agujas de roca oscura, cristales del vacío y grietas.
 	local rocks = Vector3.new(44, SURFACE_Y, -42)
+	buildCorruption(decor, rocks, rng)
+	rockTintOverride = VisualConfig.Zones.Corrupted.Rock
 	scatter({ "Spire" }, rocks, 10, 30, 7, 9, rng, decor, props)
 	scatter({ "Rock", "Boulder", "TreeDead", "GrassC" }, rocks, 6, 34, 12, 4, rng, decor, props)
+	rockTintOverride = nil
+
+	-- Cascada de las Ruinas (NE) y torii del Santuario Celestial.
+	buildWaterfall(decor, Vector3.new(74, SURFACE_Y, 58), Vector3.new(82.5, SURFACE_Y, 65), 80)
+	buildTorii(props, decor, Vector3.new(0, MapLayout.Sanctuary.Center.Y, 101.5), Vector3.new(0, 0, 1))
+	ambientEmitter(
+		decor,
+		"Fireflies",
+		CFrame.new(MapLayout.Sanctuary.Center + Vector3.new(0, 3, 0)),
+		Vector3.new(30, 4, 30),
+		{
+			Texture = VisualConfig.Textures.Glow,
+			Color = ColorSequence.new(VisualConfig.Zones.Celestial.Gold),
+			LightEmission = 1,
+			Size = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0),
+				NumberSequenceKeypoint.new(0.5, 0.5),
+				NumberSequenceKeypoint.new(1, 0),
+			}),
+			Lifetime = NumberRange.new(2.5, 4),
+			Speed = NumberRange.new(0.3, 1),
+			SpreadAngle = Vector2.new(180, 180),
+			Rate = 8,
+		}
+	)
 
 	-- Alrededores de las Ruinas (NE).
 	scatter(
@@ -6016,7 +6646,7 @@ return MapBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="55">
+      <Item class="ModuleScript" referent="56">
         <Properties>
           <string name="Name">MapLayout</string>
           <string name="Source"><![CDATA[--!strict
@@ -6261,7 +6891,7 @@ return MapLayout
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="56">
+      <Item class="ModuleScript" referent="57">
         <Properties>
           <string name="Name">ModelFactory</string>
           <string name="Source"><![CDATA[--[[
@@ -6285,6 +6915,7 @@ return MapLayout
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Types = require(ReplicatedStorage.Shared.Types)
+local VisualConfig = require(ReplicatedStorage.Shared.Config.VisualConfig)
 
 local ModelFactory = {}
 
@@ -6454,6 +7085,16 @@ function ModelFactory.buildSlime(def: Types.EnemyDef): Model
 			Color = Color3.fromRGB(24, 10, 40),
 		}, model)
 		weld(body, pupil, "PupilWeld")
+		-- Brillo de anime en la pupila: le da vida y expresión al slime.
+		local shine = visualPart({
+			Name = "EyeShine",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(0.16, 0.16, 0.16) * s,
+			CFrame = at(side * 0.75 + 0.1, 2.12, -2.08),
+			Color = Color3.new(1, 1, 1),
+			Material = Enum.Material.Neon,
+		}, model)
+		weld(body, shine, "ShineWeld")
 	end
 
 	if s > 1.5 then
@@ -6559,6 +7200,21 @@ function ModelFactory.buildSkeleton(def: Types.EnemyDef): Model
 			}, model)
 			weld(head, eye, "EyeWeld")
 		end
+		-- Llama del vacío sobre el cráneo (el cliente la apaga en calidad baja).
+		local flame = Instance.new("ParticleEmitter")
+		flame.Name = "SkullFlame"
+		flame.Texture = VisualConfig.Textures.Fire
+		flame.Color = ColorSequence.new(Color3.fromRGB(220, 160, 255), Color3.fromRGB(120, 50, 220))
+		flame.LightEmission = 1
+		flame.LightInfluence = 0
+		flame.Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.7 * s), NumberSequenceKeypoint.new(1, 0) })
+		flame.Transparency = NumberSequence.new(0.2, 1)
+		flame.Lifetime = NumberRange.new(0.3, 0.5)
+		flame.Speed = NumberRange.new(2, 3)
+		flame.SpreadAngle = Vector2.new(15, 15)
+		flame.Rate = 10
+		flame.EmissionDirection = Enum.NormalId.Top
+		flame.Parent = head
 	end
 
 	buildHealthBar(root, height - root.Size.Y / 2 + 0.9, 3.2 * s)
@@ -6579,64 +7235,125 @@ function ModelFactory.attachGaleSword(character: Model, hand: BasePart): Model
 	if existing then
 		existing:Destroy()
 	end
+	local palette = VisualConfig.Weapons.GaleSword
+	local gold = palette.Guard
 	local sword = Instance.new("Model")
 	sword.Name = "GaleSword"
+	-- La empuñadura es la raíz; la hoja apunta a -Z. Medidas en studs.
 	local grip = visualPart({
 		Name = "Grip",
-		Size = Vector3.new(0.28, 0.28, 1.1),
+		Size = Vector3.new(0.26, 0.26, 1.15),
 		CFrame = CFrame.new(),
-		Color = Color3.fromRGB(70, 52, 96),
+		Color = Color3.fromRGB(46, 36, 72),
 		Material = Enum.Material.Fabric,
 	}, sword)
 	sword.PrimaryPart = grip
-	local pommel = visualPart({
+	local function piece(props: { [string]: any }, name: string): BasePart
+		local part = visualPart(props, sword)
+		weld(grip, part, name)
+		return part
+	end
+	-- Anillas doradas de la empuñadura y pomo con gema.
+	for index, z in { 0.38, -0.05, -0.42 } do
+		piece({
+			Name = "GripBand" .. index,
+			Shape = Enum.PartType.Cylinder,
+			Size = Vector3.new(0.08, 0.32, 0.32),
+			CFrame = CFrame.new(0, 0, z) * CFrame.Angles(0, math.pi / 2, 0),
+			Color = gold,
+			Material = Enum.Material.Metal,
+		}, "BandWeld")
+	end
+	piece({
 		Name = "Pommel",
 		Shape = Enum.PartType.Ball,
-		Size = Vector3.new(0.42, 0.42, 0.42),
-		CFrame = CFrame.new(0, 0, 0.62),
-		Color = Color3.fromRGB(120, 235, 255),
-		Material = Enum.Material.Neon,
-	}, sword)
-	weld(grip, pommel, "PommelWeld")
-	local guard = visualPart({
-		Name = "Guard",
-		Size = Vector3.new(1.2, 0.22, 0.3),
-		CFrame = CFrame.new(0, 0, -0.6),
-		Color = Color3.fromRGB(230, 196, 110),
+		Size = Vector3.new(0.4, 0.4, 0.4),
+		CFrame = CFrame.new(0, 0, 0.7),
+		Color = gold,
 		Material = Enum.Material.Metal,
-	}, sword)
-	weld(grip, guard, "GuardWeld")
-	local blade = visualPart({
-		Name = "Blade",
-		Size = Vector3.new(0.34, 0.1, 3.4),
-		CFrame = CFrame.new(0, 0, -2.4),
-		Color = Color3.fromRGB(150, 240, 255),
-		Material = Enum.Material.Glass,
-		Transparency = 0.15,
-	}, sword)
-	weld(grip, blade, "BladeWeld")
-	local edge = visualPart({
-		Name = "Edge",
-		Size = Vector3.new(0.12, 0.12, 3.2),
-		CFrame = CFrame.new(0, 0, -2.45),
-		Color = Color3.fromRGB(120, 235, 255),
+	}, "PommelWeld")
+	piece({
+		Name = "PommelGem",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(0.24, 0.24, 0.24),
+		CFrame = CFrame.new(0, 0, 0.86),
+		Color = palette.Edge,
 		Material = Enum.Material.Neon,
-	}, sword)
-	weld(grip, edge, "EdgeWeld")
+	}, "GemWeld")
+	-- Guarda alada: barra central + dos alas inclinadas hacia la empuñadura.
+	piece({
+		Name = "Guard",
+		Size = Vector3.new(0.9, 0.18, 0.28),
+		CFrame = CFrame.new(0, 0, -0.62),
+		Color = gold,
+		Material = Enum.Material.Metal,
+	}, "GuardWeld")
+	for _, side in { -1, 1 } do
+		piece({
+			ClassName = "WedgePart",
+			Name = "GuardWing",
+			Size = Vector3.new(0.12, 0.42, 0.75),
+			CFrame = CFrame.new(side * 0.72, 0, -0.5) * CFrame.Angles(0, side * math.rad(28), side * math.rad(90)),
+			Color = gold,
+			Material = Enum.Material.Metal,
+		}, "WingWeld")
+	end
+	piece({
+		Name = "GuardGem",
+		Shape = Enum.PartType.Ball,
+		Size = Vector3.new(0.3, 0.3, 0.3),
+		CFrame = CFrame.new(0, 0, -0.66),
+		Color = palette.Edge,
+		Material = Enum.Material.Neon,
+	}, "GuardGemWeld")
+	-- Hoja de un solo filo: cuerpo, filo de energía y punta en cuña.
+	local blade = piece({
+		Name = "Blade",
+		Size = Vector3.new(0.1, 0.36, 3.1),
+		CFrame = CFrame.new(0, 0.02, -2.3),
+		Color = palette.Blade,
+		Material = Enum.Material.Glass,
+		Transparency = 0.1,
+		Reflectance = 0.15,
+	}, "BladeWeld")
+	piece({
+		Name = "Edge",
+		Size = Vector3.new(0.12, 0.08, 3.2),
+		CFrame = CFrame.new(0, -0.18, -2.35),
+		Color = palette.Edge,
+		Material = Enum.Material.Neon,
+	}, "EdgeWeld")
+	piece({
+		ClassName = "WedgePart",
+		Name = "Tip",
+		Size = Vector3.new(0.1, 0.44, 0.9),
+		CFrame = CFrame.new(0, -0.02, -4.28) * CFrame.Angles(0, math.pi, 0),
+		Color = palette.Blade,
+		Material = Enum.Material.Glass,
+		Transparency = 0.1,
+	}, "TipWeld")
+	piece({
+		Name = "Rune",
+		Size = Vector3.new(0.12, 0.06, 1.5),
+		CFrame = CFrame.new(0, 0.1, -1.7),
+		Color = VisualConfig.Palette.PlayerCore,
+		Material = Enum.Material.Neon,
+		Transparency = 0.2,
+	}, "RuneWeld")
 	-- Puntos de la estela del tajo (el cliente activa la Trail durante el golpe).
 	local a0 = Instance.new("Attachment")
 	a0.Name = "TrailBase"
-	a0.Position = Vector3.new(0, 0, 1.6)
+	a0.Position = Vector3.new(0, 0, 1.3)
 	a0.Parent = blade
 	local a1 = Instance.new("Attachment")
 	a1.Name = "TrailTip"
-	a1.Position = Vector3.new(0, 0, -1.6)
+	a1.Position = Vector3.new(0, 0, -2.2)
 	a1.Parent = blade
 
 	local gripAttachment = hand:FindFirstChild("RightGripAttachment") :: Attachment?
 	local gripOffset = if gripAttachment then gripAttachment.CFrame else CFrame.new(0, -1, 0)
-	-- La hoja apunta hacia delante con el brazo en reposo.
-	-- (las demás piezas siguen a la empuñadura por sus soldaduras)
+	-- La hoja apunta hacia delante con el brazo en reposo
+	-- (las demás piezas siguen a la empuñadura por sus soldaduras).
 	grip.CFrame = hand.CFrame * gripOffset * CFrame.Angles(-math.pi / 2, 0, 0) * CFrame.new(0, 0, -0.1)
 	local handWeld = Instance.new("Weld")
 	handWeld.Name = "HandWeld"
@@ -6654,20 +7371,20 @@ return ModelFactory
       </Item>
     </Item>
   </Item>
-  <Item class="ServerStorage" referent="57">
+  <Item class="ServerStorage" referent="58">
     <Properties>
       <string name="Name">ServerStorage</string>
     </Properties>
-    <Item class="Folder" referent="58">
+    <Item class="Folder" referent="59">
       <Properties>
         <string name="Name">EnemyModels</string>
       </Properties>
     </Item>
-    <Item class="Folder" referent="59">
+    <Item class="Folder" referent="60">
       <Properties>
         <string name="Name">SkyBonkAssets</string>
       </Properties>
-      <Item class="Folder" referent="60">
+      <Item class="Folder" referent="61">
         <Properties>
           <string name="Name">MapKit</string>
           <BinaryString name="AttributesSerialize"></BinaryString>
@@ -6683,7 +7400,7 @@ return ModelFactory
           <int64 name="SourceAssetId">-1</int64>
           <BinaryString name="Tags"></BinaryString>
         </Properties>
-        <Item class="Model" referent="61">
+        <Item class="Model" referent="62">
           <Properties>
             <string name="Name">Tree_Round</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRHWEXNBC+fBQel4bkE=</BinaryString>
@@ -6736,7 +7453,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="62">
+          <Item class="MeshPart" referent="63">
             <Properties>
               <string name="Name">Trunk</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -6879,7 +7596,7 @@ return ModelFactory
               <int name="VertexCount">0</int>
             </Properties>
           </Item>
-          <Item class="MeshPart" referent="63">
+          <Item class="MeshPart" referent="64">
             <Properties>
               <string name="Name">Leaves1</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -7022,7 +7739,7 @@ return ModelFactory
               <int name="VertexCount">0</int>
             </Properties>
           </Item>
-          <Item class="MeshPart" referent="64">
+          <Item class="MeshPart" referent="65">
             <Properties>
               <string name="Name">Leaves2</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -7166,7 +7883,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="65">
+        <Item class="Model" referent="66">
           <Properties>
             <string name="Name">Tree_Twist</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRE2ZGdBzxmkQTJFnkE=</BinaryString>
@@ -7219,7 +7936,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="Model" referent="66">
+          <Item class="Model" referent="67">
             <Properties>
               <string name="Name">Model</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -7272,7 +7989,7 @@ return ModelFactory
                 </CFrame>
               </OptionalCoordinateFrame>
             </Properties>
-            <Item class="MeshPart" referent="67">
+            <Item class="MeshPart" referent="68">
               <Properties>
                 <string name="Name">Meshes/Low-Poly Tree Stump</string>
                 <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -7416,7 +8133,7 @@ return ModelFactory
               </Properties>
             </Item>
           </Item>
-          <Item class="MeshPart" referent="68">
+          <Item class="MeshPart" referent="69">
             <Properties>
               <string name="Name">Meshes/LeavesMesh</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -7560,7 +8277,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="69">
+        <Item class="Model" referent="70">
           <Properties>
             <string name="Name">Tree_Pine</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRFzB8lB/l00QrQIyUE=</BinaryString>
@@ -7613,7 +8330,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="70">
+          <Item class="MeshPart" referent="71">
             <Properties>
               <string name="Name">MeshPart</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -7756,7 +8473,7 @@ return ModelFactory
               <int name="VertexCount">0</int>
             </Properties>
           </Item>
-          <Item class="MeshPart" referent="71">
+          <Item class="MeshPart" referent="72">
             <Properties>
               <string name="Name">MeshPart</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -7900,7 +8617,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="72">
+        <Item class="Model" referent="73">
           <Properties>
             <string name="Name">Tree_Blossom</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRGS3y5BVstpQQn2MEE=</BinaryString>
@@ -7953,7 +8670,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="73">
+          <Item class="MeshPart" referent="74">
             <Properties>
               <string name="Name">MeshPart</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -8096,7 +8813,7 @@ return ModelFactory
               <int name="VertexCount">0</int>
             </Properties>
           </Item>
-          <Item class="MeshPart" referent="74">
+          <Item class="MeshPart" referent="75">
             <Properties>
               <string name="Name">MeshPart</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -8240,7 +8957,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="75">
+        <Item class="Model" referent="76">
           <Properties>
             <string name="Name">Tree_Normal</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRE8J35B/o6PQWASiUE=</BinaryString>
@@ -8293,7 +9010,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="76">
+          <Item class="MeshPart" referent="77">
             <Properties>
               <string name="Name">MeshPart</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -8436,7 +9153,7 @@ return ModelFactory
               <int name="VertexCount">0</int>
             </Properties>
           </Item>
-          <Item class="MeshPart" referent="77">
+          <Item class="MeshPart" referent="78">
             <Properties>
               <string name="Name">MeshPart</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -8579,7 +9296,7 @@ return ModelFactory
               <int name="VertexCount">0</int>
             </Properties>
           </Item>
-          <Item class="MeshPart" referent="78">
+          <Item class="MeshPart" referent="79">
             <Properties>
               <string name="Name">MeshPart</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -8722,7 +9439,7 @@ return ModelFactory
               <int name="VertexCount">0</int>
             </Properties>
           </Item>
-          <Item class="MeshPart" referent="79">
+          <Item class="MeshPart" referent="80">
             <Properties>
               <string name="Name">MeshPart</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -8865,7 +9582,7 @@ return ModelFactory
               <int name="VertexCount">0</int>
             </Properties>
           </Item>
-          <Item class="MeshPart" referent="80">
+          <Item class="MeshPart" referent="81">
             <Properties>
               <string name="Name">MeshPart</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -9008,7 +9725,7 @@ return ModelFactory
               <int name="VertexCount">0</int>
             </Properties>
           </Item>
-          <Item class="MeshPart" referent="81">
+          <Item class="MeshPart" referent="82">
             <Properties>
               <string name="Name">MeshPart</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -9151,7 +9868,7 @@ return ModelFactory
               <int name="VertexCount">0</int>
             </Properties>
           </Item>
-          <Item class="MeshPart" referent="82">
+          <Item class="MeshPart" referent="83">
             <Properties>
               <string name="Name">MeshPart</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -9294,7 +10011,7 @@ return ModelFactory
               <int name="VertexCount">0</int>
             </Properties>
           </Item>
-          <Item class="MeshPart" referent="83">
+          <Item class="MeshPart" referent="84">
             <Properties>
               <string name="Name">MeshPart</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -9437,7 +10154,7 @@ return ModelFactory
               <int name="VertexCount">0</int>
             </Properties>
           </Item>
-          <Item class="MeshPart" referent="84">
+          <Item class="MeshPart" referent="85">
             <Properties>
               <string name="Name">MeshPart</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -9580,7 +10297,7 @@ return ModelFactory
               <int name="VertexCount">0</int>
             </Properties>
           </Item>
-          <Item class="MeshPart" referent="85">
+          <Item class="MeshPart" referent="86">
             <Properties>
               <string name="Name">MeshPart</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -9724,7 +10441,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="86">
+        <Item class="Model" referent="87">
           <Properties>
             <string name="Name">Tree_Dead</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRE9NGVBwMWUQWyCekE=</BinaryString>
@@ -9777,7 +10494,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="87">
+          <Item class="MeshPart" referent="88">
             <Properties>
               <string name="Name">MeshPart</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -9921,7 +10638,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="88">
+        <Item class="Model" referent="89">
           <Properties>
             <string name="Name">Bush_Big</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRFE6vNATDn9QIVl/EA=</BinaryString>
@@ -9974,7 +10691,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="89">
+          <Item class="MeshPart" referent="90">
             <Properties>
               <string name="Name">Tree6</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -10117,7 +10834,7 @@ return ModelFactory
               <int name="VertexCount">0</int>
             </Properties>
           </Item>
-          <Item class="MeshPart" referent="90">
+          <Item class="MeshPart" referent="91">
             <Properties>
               <string name="Name">Tree6</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -10260,7 +10977,7 @@ return ModelFactory
               <int name="VertexCount">0</int>
             </Properties>
           </Item>
-          <Item class="MeshPart" referent="91">
+          <Item class="MeshPart" referent="92">
             <Properties>
               <string name="Name">Tree6</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -10404,7 +11121,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="92">
+        <Item class="Model" referent="93">
           <Properties>
             <string name="Name">Bush_Small</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRGA2UpAhSENQFflbkA=</BinaryString>
@@ -10457,7 +11174,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="93">
+          <Item class="MeshPart" referent="94">
             <Properties>
               <string name="Name">Meshes/arbusto</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -10601,7 +11318,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="94">
+        <Item class="Model" referent="95">
           <Properties>
             <string name="Name">Grass_A</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRGU665A+G+IQBVGiUA=</BinaryString>
@@ -10654,7 +11371,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="95">
+          <Item class="MeshPart" referent="96">
             <Properties>
               <string name="Name">Grass</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -10798,7 +11515,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="96">
+        <Item class="Model" referent="97">
           <Properties>
             <string name="Name">Grass_B</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRF7FB5AzPE1QAgANEA=</BinaryString>
@@ -10851,7 +11568,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="97">
+          <Item class="MeshPart" referent="98">
             <Properties>
               <string name="Name">Grass</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -10995,7 +11712,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="98">
+        <Item class="Model" referent="99">
           <Properties>
             <string name="Name">Grass_C</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRGbvLo/zMwMQDJ30T8=</BinaryString>
@@ -11048,7 +11765,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="99">
+          <Item class="MeshPart" referent="100">
             <Properties>
               <string name="Name">Meshes/grass</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -11192,7 +11909,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="100">
+        <Item class="Model" referent="101">
           <Properties>
             <string name="Name">Log</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZREAugtBML5AQIJTTUA=</BinaryString>
@@ -11245,7 +11962,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="101">
+          <Item class="MeshPart" referent="102">
             <Properties>
               <string name="Name">Meshes/log</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -11389,7 +12106,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="102">
+        <Item class="Model" referent="103">
           <Properties>
             <string name="Name">Mushrooms</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRGpPulAVSSSQOTzmkA=</BinaryString>
@@ -11442,7 +12159,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="103">
+          <Item class="MeshPart" referent="104">
             <Properties>
               <string name="Name">MeshPart</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -11585,7 +12302,7 @@ return ModelFactory
               <int name="VertexCount">0</int>
             </Properties>
           </Item>
-          <Item class="MeshPart" referent="104">
+          <Item class="MeshPart" referent="105">
             <Properties>
               <string name="Name">MeshPart</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -11728,7 +12445,7 @@ return ModelFactory
               <int name="VertexCount">0</int>
             </Properties>
           </Item>
-          <Item class="MeshPart" referent="105">
+          <Item class="MeshPart" referent="106">
             <Properties>
               <string name="Name">MeshPart</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -11872,7 +12589,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="106">
+        <Item class="Model" referent="107">
           <Properties>
             <string name="Name">Boulder_A</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRHN/r9AAACAQAAAwEA=</BinaryString>
@@ -11925,7 +12642,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="107">
+          <Item class="MeshPart" referent="108">
             <Properties>
               <string name="Name">Rock</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -12069,7 +12786,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="108">
+        <Item class="Model" referent="109">
           <Properties>
             <string name="Name">Boulder_B</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZREGBYVAaLCZQCroi0A=</BinaryString>
@@ -12122,7 +12839,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="109">
+          <Item class="MeshPart" referent="110">
             <Properties>
               <string name="Name">Rock 1</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -12266,7 +12983,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="110">
+        <Item class="Model" referent="111">
           <Properties>
             <string name="Name">Rock_1</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRExu8FAjVzMQIvxukA=</BinaryString>
@@ -12319,7 +13036,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="111">
+          <Item class="MeshPart" referent="112">
             <Properties>
               <string name="Name">Rock7</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -12463,7 +13180,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="112">
+        <Item class="Model" referent="113">
           <Properties>
             <string name="Name">Rock_2</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRHhTLtA7NvhQDLpoEA=</BinaryString>
@@ -12516,7 +13233,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="113">
+          <Item class="MeshPart" referent="114">
             <Properties>
               <string name="Name">Rock1</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -12660,7 +13377,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="114">
+        <Item class="Model" referent="115">
           <Properties>
             <string name="Name">Rock_3</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRHXzo1AnW6dQOs6k0A=</BinaryString>
@@ -12713,7 +13430,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="115">
+          <Item class="MeshPart" referent="116">
             <Properties>
               <string name="Name">Rock5</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -12857,7 +13574,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="116">
+        <Item class="Model" referent="117">
           <Properties>
             <string name="Name">Rock_4</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRHoibRAI4R6QKyQw0A=</BinaryString>
@@ -12910,7 +13627,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="117">
+          <Item class="MeshPart" referent="118">
             <Properties>
               <string name="Name">Rock8</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -13054,7 +13771,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="118">
+        <Item class="Model" referent="119">
           <Properties>
             <string name="Name">Rock_5</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRHGiZ5AIHueQGeQikA=</BinaryString>
@@ -13107,7 +13824,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="119">
+          <Item class="MeshPart" referent="120">
             <Properties>
               <string name="Name">Rock4</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -13251,7 +13968,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="120">
+        <Item class="Model" referent="121">
           <Properties>
             <string name="Name">Rock_6</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRGh9ttAiJPkQPAPdUA=</BinaryString>
@@ -13304,7 +14021,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="121">
+          <Item class="MeshPart" referent="122">
             <Properties>
               <string name="Name">Rock3</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -13448,7 +14165,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="122">
+        <Item class="Model" referent="123">
           <Properties>
             <string name="Name">Rock_7</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRG3ULZAzw7KQO/j0kA=</BinaryString>
@@ -13501,7 +14218,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="123">
+          <Item class="MeshPart" referent="124">
             <Properties>
               <string name="Name">Rock9</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -13645,7 +14362,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="124">
+        <Item class="Model" referent="125">
           <Properties>
             <string name="Name">Rock_8</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRGo1KxAHr6MQNKkqkA=</BinaryString>
@@ -13698,7 +14415,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="125">
+          <Item class="MeshPart" referent="126">
             <Properties>
               <string name="Name">Rock10</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -13842,7 +14559,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="126">
+        <Item class="Model" referent="127">
           <Properties>
             <string name="Name">Rock_9</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZREWSrtAZ3/AQP01v0A=</BinaryString>
@@ -13895,7 +14612,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="127">
+          <Item class="MeshPart" referent="128">
             <Properties>
               <string name="Name">Rock6</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -14039,7 +14756,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Model" referent="128">
+        <Item class="Model" referent="129">
           <Properties>
             <string name="Name">Rock_10</string>
             <BinaryString name="AttributesSerialize">AQAAAAgAAABCYXNlU2l6ZRF6259ATB67QB/BmUA=</BinaryString>
@@ -14092,7 +14809,7 @@ return ModelFactory
               </CFrame>
             </OptionalCoordinateFrame>
           </Properties>
-          <Item class="MeshPart" referent="129">
+          <Item class="MeshPart" referent="130">
             <Properties>
               <string name="Name">Rock2</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -14237,7 +14954,7 @@ return ModelFactory
           </Item>
         </Item>
       </Item>
-      <Item class="Model" referent="130">
+      <Item class="Model" referent="131">
         <Properties>
           <string name="Name">SkeletonRig</string>
           <BinaryString name="AttributesSerialize"></BinaryString>
@@ -14265,7 +14982,7 @@ return ModelFactory
           </Vector3>
           <token name="ModelStreamingMode">0</token>
           <bool name="NeedsPivotMigration">false</bool>
-          <Ref name="PrimaryPart">131</Ref>
+          <Ref name="PrimaryPart">132</Ref>
           <bool name="DefinesCapabilities">false</bool>
           <float name="ScaleFactor">1</float>
           <BinaryString name="SerializedOverrides">
@@ -14290,7 +15007,7 @@ return ModelFactory
             </CFrame>
           </OptionalCoordinateFrame>
         </Properties>
-        <Item class="Part" referent="131">
+        <Item class="Part" referent="132">
           <Properties>
             <string name="Name">HumanoidRootPart</string>
             <bool name="Anchored">true</bool>
@@ -14390,7 +15107,7 @@ return ModelFactory
               <Z>0</Z>
             </Vector3>
           </Properties>
-          <Item class="Attachment" referent="132">
+          <Item class="Attachment" referent="133">
             <Properties>
               <string name="Name">RootRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -14418,7 +15135,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="MeshPart" referent="133">
+        <Item class="MeshPart" referent="134">
           <Properties>
             <string name="Name">UpperTorso</string>
             <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -14559,7 +15276,7 @@ return ModelFactory
             </Vector3>
             <int name="VertexCount">0</int>
           </Properties>
-          <Item class="Attachment" referent="134">
+          <Item class="Attachment" referent="135">
             <Properties>
               <string name="Name">WaistRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -14586,7 +15303,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="135">
+          <Item class="Attachment" referent="136">
             <Properties>
               <string name="Name">NeckRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -14613,7 +15330,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="136">
+          <Item class="Attachment" referent="137">
             <Properties>
               <string name="Name">LeftShoulderRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -14640,7 +15357,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="137">
+          <Item class="Attachment" referent="138">
             <Properties>
               <string name="Name">RightShoulderRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -14667,7 +15384,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="138">
+          <Item class="Attachment" referent="139">
             <Properties>
               <string name="Name">LeftCollarAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -14694,7 +15411,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="139">
+          <Item class="Attachment" referent="140">
             <Properties>
               <string name="Name">RightCollarAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -14721,7 +15438,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="140">
+          <Item class="Attachment" referent="141">
             <Properties>
               <string name="Name">NeckAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -14748,7 +15465,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="141">
+          <Item class="Attachment" referent="142">
             <Properties>
               <string name="Name">BodyBackAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -14775,7 +15492,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="142">
+          <Item class="Attachment" referent="143">
             <Properties>
               <string name="Name">BodyFrontAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -14802,7 +15519,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Motor6D" referent="143">
+          <Item class="Motor6D" referent="144">
             <Properties>
               <string name="Name">Waist</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -14838,8 +15555,8 @@ return ModelFactory
               <float name="DesiredAngle">0</float>
               <bool name="Enabled">true</bool>
               <float name="MaxVelocity">0</float>
-              <Ref name="Part0">144</Ref>
-              <Ref name="Part1">133</Ref>
+              <Ref name="Part0">145</Ref>
+              <Ref name="Part1">134</Ref>
               <bool name="DefinesCapabilities">false</bool>
               <BinaryString name="SerializedOverrides">
               </BinaryString>
@@ -14848,7 +15565,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="MeshPart" referent="144">
+        <Item class="MeshPart" referent="145">
           <Properties>
             <string name="Name">LowerTorso</string>
             <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -14989,7 +15706,7 @@ return ModelFactory
             </Vector3>
             <int name="VertexCount">0</int>
           </Properties>
-          <Item class="Attachment" referent="145">
+          <Item class="Attachment" referent="146">
             <Properties>
               <string name="Name">RootRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -15016,7 +15733,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="146">
+          <Item class="Attachment" referent="147">
             <Properties>
               <string name="Name">WaistRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -15043,7 +15760,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="147">
+          <Item class="Attachment" referent="148">
             <Properties>
               <string name="Name">LeftHipRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -15070,7 +15787,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="148">
+          <Item class="Attachment" referent="149">
             <Properties>
               <string name="Name">RightHipRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -15097,7 +15814,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="149">
+          <Item class="Attachment" referent="150">
             <Properties>
               <string name="Name">WaistCenterAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -15124,7 +15841,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="150">
+          <Item class="Attachment" referent="151">
             <Properties>
               <string name="Name">WaistFrontAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -15151,7 +15868,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="151">
+          <Item class="Attachment" referent="152">
             <Properties>
               <string name="Name">WaistBackAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -15178,7 +15895,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Motor6D" referent="152">
+          <Item class="Motor6D" referent="153">
             <Properties>
               <string name="Name">Root</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -15214,8 +15931,8 @@ return ModelFactory
               <float name="DesiredAngle">0</float>
               <bool name="Enabled">true</bool>
               <float name="MaxVelocity">0</float>
-              <Ref name="Part0">131</Ref>
-              <Ref name="Part1">144</Ref>
+              <Ref name="Part0">132</Ref>
+              <Ref name="Part1">145</Ref>
               <bool name="DefinesCapabilities">false</bool>
               <BinaryString name="SerializedOverrides">
               </BinaryString>
@@ -15224,7 +15941,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="Accessory" referent="153">
+        <Item class="Accessory" referent="154">
           <Properties>
             <string name="Name">Skull</string>
             <token name="AccessoryType">1</token>
@@ -15250,7 +15967,7 @@ return ModelFactory
             <int64 name="SourceAssetId">-1</int64>
             <BinaryString name="Tags"></BinaryString>
           </Properties>
-          <Item class="MeshPart" referent="154">
+          <Item class="MeshPart" referent="155">
             <Properties>
               <string name="Name">Handle</string>
               <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -15391,7 +16108,7 @@ return ModelFactory
               </Vector3>
               <int name="VertexCount">0</int>
             </Properties>
-            <Item class="Attachment" referent="155">
+            <Item class="Attachment" referent="156">
               <Properties>
                 <string name="Name">HatAttachment</string>
                 <BinaryString name="AttributesSerialize"></BinaryString>
@@ -15418,7 +16135,7 @@ return ModelFactory
                 <bool name="Visible">false</bool>
               </Properties>
             </Item>
-            <Item class="Weld" referent="156">
+            <Item class="Weld" referent="157">
               <Properties>
                 <string name="Name">AccessoryWeld</string>
                 <BinaryString name="AttributesSerialize"></BinaryString>
@@ -15452,8 +16169,8 @@ return ModelFactory
                 </CoordinateFrame>
                 <SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
                 <bool name="Enabled">true</bool>
-                <Ref name="Part0">154</Ref>
-                <Ref name="Part1">157</Ref>
+                <Ref name="Part0">155</Ref>
+                <Ref name="Part1">158</Ref>
                 <bool name="DefinesCapabilities">false</bool>
                 <BinaryString name="SerializedOverrides">
                 </BinaryString>
@@ -15463,7 +16180,7 @@ return ModelFactory
             </Item>
           </Item>
         </Item>
-        <Item class="MeshPart" referent="158">
+        <Item class="MeshPart" referent="159">
           <Properties>
             <string name="Name">RightUpperArm</string>
             <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -15604,7 +16321,7 @@ return ModelFactory
             </Vector3>
             <int name="VertexCount">0</int>
           </Properties>
-          <Item class="Attachment" referent="159">
+          <Item class="Attachment" referent="160">
             <Properties>
               <string name="Name">RightShoulderRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -15631,7 +16348,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="160">
+          <Item class="Attachment" referent="161">
             <Properties>
               <string name="Name">RightElbowRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -15658,7 +16375,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="161">
+          <Item class="Attachment" referent="162">
             <Properties>
               <string name="Name">RightShoulderAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -15685,7 +16402,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Motor6D" referent="162">
+          <Item class="Motor6D" referent="163">
             <Properties>
               <string name="Name">RightShoulder</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -15721,8 +16438,8 @@ return ModelFactory
               <float name="DesiredAngle">0</float>
               <bool name="Enabled">true</bool>
               <float name="MaxVelocity">0</float>
-              <Ref name="Part0">133</Ref>
-              <Ref name="Part1">158</Ref>
+              <Ref name="Part0">134</Ref>
+              <Ref name="Part1">159</Ref>
               <bool name="DefinesCapabilities">false</bool>
               <BinaryString name="SerializedOverrides">
               </BinaryString>
@@ -15731,7 +16448,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="MeshPart" referent="163">
+        <Item class="MeshPart" referent="164">
           <Properties>
             <string name="Name">RightLowerArm</string>
             <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -15872,7 +16589,7 @@ return ModelFactory
             </Vector3>
             <int name="VertexCount">0</int>
           </Properties>
-          <Item class="Attachment" referent="164">
+          <Item class="Attachment" referent="165">
             <Properties>
               <string name="Name">RightElbowRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -15899,7 +16616,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="165">
+          <Item class="Attachment" referent="166">
             <Properties>
               <string name="Name">RightWristRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -15926,7 +16643,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Motor6D" referent="166">
+          <Item class="Motor6D" referent="167">
             <Properties>
               <string name="Name">RightElbow</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -15962,8 +16679,8 @@ return ModelFactory
               <float name="DesiredAngle">0</float>
               <bool name="Enabled">true</bool>
               <float name="MaxVelocity">0</float>
-              <Ref name="Part0">158</Ref>
-              <Ref name="Part1">163</Ref>
+              <Ref name="Part0">159</Ref>
+              <Ref name="Part1">164</Ref>
               <bool name="DefinesCapabilities">false</bool>
               <BinaryString name="SerializedOverrides">
               </BinaryString>
@@ -15972,7 +16689,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="MeshPart" referent="167">
+        <Item class="MeshPart" referent="168">
           <Properties>
             <string name="Name">RightHand</string>
             <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -16113,7 +16830,7 @@ return ModelFactory
             </Vector3>
             <int name="VertexCount">0</int>
           </Properties>
-          <Item class="Attachment" referent="168">
+          <Item class="Attachment" referent="169">
             <Properties>
               <string name="Name">RightWristRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -16140,7 +16857,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="169">
+          <Item class="Attachment" referent="170">
             <Properties>
               <string name="Name">RightGripAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -16167,7 +16884,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Motor6D" referent="170">
+          <Item class="Motor6D" referent="171">
             <Properties>
               <string name="Name">RightWrist</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -16203,8 +16920,8 @@ return ModelFactory
               <float name="DesiredAngle">0</float>
               <bool name="Enabled">true</bool>
               <float name="MaxVelocity">0</float>
-              <Ref name="Part0">163</Ref>
-              <Ref name="Part1">167</Ref>
+              <Ref name="Part0">164</Ref>
+              <Ref name="Part1">168</Ref>
               <bool name="DefinesCapabilities">false</bool>
               <BinaryString name="SerializedOverrides">
               </BinaryString>
@@ -16213,7 +16930,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="MeshPart" referent="157">
+        <Item class="MeshPart" referent="158">
           <Properties>
             <string name="Name">Head</string>
             <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -16355,7 +17072,7 @@ return ModelFactory
             </Vector3>
             <int name="VertexCount">0</int>
           </Properties>
-          <Item class="Attachment" referent="171">
+          <Item class="Attachment" referent="172">
             <Properties>
               <string name="Name">FaceCenterAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -16382,7 +17099,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="172">
+          <Item class="Attachment" referent="173">
             <Properties>
               <string name="Name">FaceFrontAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -16409,7 +17126,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="173">
+          <Item class="Attachment" referent="174">
             <Properties>
               <string name="Name">HairAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -16436,7 +17153,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="174">
+          <Item class="Attachment" referent="175">
             <Properties>
               <string name="Name">HatAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -16463,7 +17180,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="175">
+          <Item class="Attachment" referent="176">
             <Properties>
               <string name="Name">NeckRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -16490,7 +17207,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Motor6D" referent="176">
+          <Item class="Motor6D" referent="177">
             <Properties>
               <string name="Name">Neck</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -16526,8 +17243,8 @@ return ModelFactory
               <float name="DesiredAngle">0</float>
               <bool name="Enabled">true</bool>
               <float name="MaxVelocity">0</float>
-              <Ref name="Part0">133</Ref>
-              <Ref name="Part1">157</Ref>
+              <Ref name="Part0">134</Ref>
+              <Ref name="Part1">158</Ref>
               <bool name="DefinesCapabilities">false</bool>
               <BinaryString name="SerializedOverrides">
               </BinaryString>
@@ -16536,7 +17253,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="MeshPart" referent="177">
+        <Item class="MeshPart" referent="178">
           <Properties>
             <string name="Name">LeftUpperArm</string>
             <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -16677,7 +17394,7 @@ return ModelFactory
             </Vector3>
             <int name="VertexCount">0</int>
           </Properties>
-          <Item class="Attachment" referent="178">
+          <Item class="Attachment" referent="179">
             <Properties>
               <string name="Name">LeftShoulderRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -16704,7 +17421,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="179">
+          <Item class="Attachment" referent="180">
             <Properties>
               <string name="Name">LeftElbowRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -16731,7 +17448,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="180">
+          <Item class="Attachment" referent="181">
             <Properties>
               <string name="Name">LeftShoulderAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -16758,7 +17475,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Motor6D" referent="181">
+          <Item class="Motor6D" referent="182">
             <Properties>
               <string name="Name">LeftShoulder</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -16794,8 +17511,8 @@ return ModelFactory
               <float name="DesiredAngle">0</float>
               <bool name="Enabled">true</bool>
               <float name="MaxVelocity">0</float>
-              <Ref name="Part0">133</Ref>
-              <Ref name="Part1">177</Ref>
+              <Ref name="Part0">134</Ref>
+              <Ref name="Part1">178</Ref>
               <bool name="DefinesCapabilities">false</bool>
               <BinaryString name="SerializedOverrides">
               </BinaryString>
@@ -16804,7 +17521,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="MeshPart" referent="182">
+        <Item class="MeshPart" referent="183">
           <Properties>
             <string name="Name">LeftLowerArm</string>
             <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -16945,7 +17662,7 @@ return ModelFactory
             </Vector3>
             <int name="VertexCount">0</int>
           </Properties>
-          <Item class="Attachment" referent="183">
+          <Item class="Attachment" referent="184">
             <Properties>
               <string name="Name">LeftElbowRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -16972,7 +17689,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="184">
+          <Item class="Attachment" referent="185">
             <Properties>
               <string name="Name">LeftWristRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -16999,7 +17716,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Motor6D" referent="185">
+          <Item class="Motor6D" referent="186">
             <Properties>
               <string name="Name">LeftElbow</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -17035,8 +17752,8 @@ return ModelFactory
               <float name="DesiredAngle">0</float>
               <bool name="Enabled">true</bool>
               <float name="MaxVelocity">0</float>
-              <Ref name="Part0">177</Ref>
-              <Ref name="Part1">182</Ref>
+              <Ref name="Part0">178</Ref>
+              <Ref name="Part1">183</Ref>
               <bool name="DefinesCapabilities">false</bool>
               <BinaryString name="SerializedOverrides">
               </BinaryString>
@@ -17045,7 +17762,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="MeshPart" referent="186">
+        <Item class="MeshPart" referent="187">
           <Properties>
             <string name="Name">LeftHand</string>
             <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -17186,7 +17903,7 @@ return ModelFactory
             </Vector3>
             <int name="VertexCount">0</int>
           </Properties>
-          <Item class="Attachment" referent="187">
+          <Item class="Attachment" referent="188">
             <Properties>
               <string name="Name">LeftWristRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -17213,7 +17930,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="188">
+          <Item class="Attachment" referent="189">
             <Properties>
               <string name="Name">LeftGripAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -17240,7 +17957,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Motor6D" referent="189">
+          <Item class="Motor6D" referent="190">
             <Properties>
               <string name="Name">LeftWrist</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -17276,8 +17993,8 @@ return ModelFactory
               <float name="DesiredAngle">0</float>
               <bool name="Enabled">true</bool>
               <float name="MaxVelocity">0</float>
-              <Ref name="Part0">182</Ref>
-              <Ref name="Part1">186</Ref>
+              <Ref name="Part0">183</Ref>
+              <Ref name="Part1">187</Ref>
               <bool name="DefinesCapabilities">false</bool>
               <BinaryString name="SerializedOverrides">
               </BinaryString>
@@ -17286,7 +18003,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="MeshPart" referent="190">
+        <Item class="MeshPart" referent="191">
           <Properties>
             <string name="Name">LeftFoot</string>
             <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -17427,7 +18144,7 @@ return ModelFactory
             </Vector3>
             <int name="VertexCount">0</int>
           </Properties>
-          <Item class="Attachment" referent="191">
+          <Item class="Attachment" referent="192">
             <Properties>
               <string name="Name">LeftAnkleRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -17454,7 +18171,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="192">
+          <Item class="Attachment" referent="193">
             <Properties>
               <string name="Name">LeftFootAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -17481,7 +18198,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Motor6D" referent="193">
+          <Item class="Motor6D" referent="194">
             <Properties>
               <string name="Name">LeftAnkle</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -17517,8 +18234,8 @@ return ModelFactory
               <float name="DesiredAngle">0</float>
               <bool name="Enabled">true</bool>
               <float name="MaxVelocity">0</float>
-              <Ref name="Part0">194</Ref>
-              <Ref name="Part1">190</Ref>
+              <Ref name="Part0">195</Ref>
+              <Ref name="Part1">191</Ref>
               <bool name="DefinesCapabilities">false</bool>
               <BinaryString name="SerializedOverrides">
               </BinaryString>
@@ -17527,7 +18244,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="MeshPart" referent="194">
+        <Item class="MeshPart" referent="195">
           <Properties>
             <string name="Name">LeftLowerLeg</string>
             <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -17668,7 +18385,7 @@ return ModelFactory
             </Vector3>
             <int name="VertexCount">0</int>
           </Properties>
-          <Item class="Attachment" referent="195">
+          <Item class="Attachment" referent="196">
             <Properties>
               <string name="Name">LeftKneeRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -17695,7 +18412,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="196">
+          <Item class="Attachment" referent="197">
             <Properties>
               <string name="Name">LeftAnkleRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -17722,7 +18439,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Motor6D" referent="197">
+          <Item class="Motor6D" referent="198">
             <Properties>
               <string name="Name">LeftKnee</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -17758,8 +18475,8 @@ return ModelFactory
               <float name="DesiredAngle">0</float>
               <bool name="Enabled">true</bool>
               <float name="MaxVelocity">0</float>
-              <Ref name="Part0">198</Ref>
-              <Ref name="Part1">194</Ref>
+              <Ref name="Part0">199</Ref>
+              <Ref name="Part1">195</Ref>
               <bool name="DefinesCapabilities">false</bool>
               <BinaryString name="SerializedOverrides">
               </BinaryString>
@@ -17768,7 +18485,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="MeshPart" referent="198">
+        <Item class="MeshPart" referent="199">
           <Properties>
             <string name="Name">LeftUpperLeg</string>
             <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -17909,7 +18626,7 @@ return ModelFactory
             </Vector3>
             <int name="VertexCount">0</int>
           </Properties>
-          <Item class="Attachment" referent="199">
+          <Item class="Attachment" referent="200">
             <Properties>
               <string name="Name">LeftHipRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -17936,7 +18653,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="200">
+          <Item class="Attachment" referent="201">
             <Properties>
               <string name="Name">LeftKneeRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -17963,7 +18680,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Motor6D" referent="201">
+          <Item class="Motor6D" referent="202">
             <Properties>
               <string name="Name">LeftHip</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -17999,8 +18716,8 @@ return ModelFactory
               <float name="DesiredAngle">0</float>
               <bool name="Enabled">true</bool>
               <float name="MaxVelocity">0</float>
-              <Ref name="Part0">144</Ref>
-              <Ref name="Part1">198</Ref>
+              <Ref name="Part0">145</Ref>
+              <Ref name="Part1">199</Ref>
               <bool name="DefinesCapabilities">false</bool>
               <BinaryString name="SerializedOverrides">
               </BinaryString>
@@ -18009,7 +18726,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="MeshPart" referent="202">
+        <Item class="MeshPart" referent="203">
           <Properties>
             <string name="Name">RightFoot</string>
             <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -18150,7 +18867,7 @@ return ModelFactory
             </Vector3>
             <int name="VertexCount">0</int>
           </Properties>
-          <Item class="Attachment" referent="203">
+          <Item class="Attachment" referent="204">
             <Properties>
               <string name="Name">RightAnkleRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -18177,7 +18894,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="204">
+          <Item class="Attachment" referent="205">
             <Properties>
               <string name="Name">RightFootAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -18204,7 +18921,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Motor6D" referent="205">
+          <Item class="Motor6D" referent="206">
             <Properties>
               <string name="Name">RightAnkle</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -18240,8 +18957,8 @@ return ModelFactory
               <float name="DesiredAngle">0</float>
               <bool name="Enabled">true</bool>
               <float name="MaxVelocity">0</float>
-              <Ref name="Part0">206</Ref>
-              <Ref name="Part1">202</Ref>
+              <Ref name="Part0">207</Ref>
+              <Ref name="Part1">203</Ref>
               <bool name="DefinesCapabilities">false</bool>
               <BinaryString name="SerializedOverrides">
               </BinaryString>
@@ -18250,7 +18967,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="MeshPart" referent="206">
+        <Item class="MeshPart" referent="207">
           <Properties>
             <string name="Name">RightLowerLeg</string>
             <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -18391,7 +19108,7 @@ return ModelFactory
             </Vector3>
             <int name="VertexCount">0</int>
           </Properties>
-          <Item class="Attachment" referent="207">
+          <Item class="Attachment" referent="208">
             <Properties>
               <string name="Name">RightKneeRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -18418,7 +19135,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="208">
+          <Item class="Attachment" referent="209">
             <Properties>
               <string name="Name">RightAnkleRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -18445,7 +19162,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Motor6D" referent="209">
+          <Item class="Motor6D" referent="210">
             <Properties>
               <string name="Name">RightKnee</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -18481,8 +19198,8 @@ return ModelFactory
               <float name="DesiredAngle">0</float>
               <bool name="Enabled">true</bool>
               <float name="MaxVelocity">0</float>
-              <Ref name="Part0">210</Ref>
-              <Ref name="Part1">206</Ref>
+              <Ref name="Part0">211</Ref>
+              <Ref name="Part1">207</Ref>
               <bool name="DefinesCapabilities">false</bool>
               <BinaryString name="SerializedOverrides">
               </BinaryString>
@@ -18491,7 +19208,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="MeshPart" referent="210">
+        <Item class="MeshPart" referent="211">
           <Properties>
             <string name="Name">RightUpperLeg</string>
             <SharedString name="AeroMeshData">rxNJufX5oaagQE3qNtzJSQ==</SharedString>
@@ -18632,7 +19349,7 @@ return ModelFactory
             </Vector3>
             <int name="VertexCount">0</int>
           </Properties>
-          <Item class="Attachment" referent="211">
+          <Item class="Attachment" referent="212">
             <Properties>
               <string name="Name">RightHipRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -18659,7 +19376,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Attachment" referent="212">
+          <Item class="Attachment" referent="213">
             <Properties>
               <string name="Name">RightKneeRigAttachment</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -18686,7 +19403,7 @@ return ModelFactory
               <bool name="Visible">false</bool>
             </Properties>
           </Item>
-          <Item class="Motor6D" referent="213">
+          <Item class="Motor6D" referent="214">
             <Properties>
               <string name="Name">RightHip</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -18722,8 +19439,8 @@ return ModelFactory
               <float name="DesiredAngle">0</float>
               <bool name="Enabled">true</bool>
               <float name="MaxVelocity">0</float>
-              <Ref name="Part0">144</Ref>
-              <Ref name="Part1">210</Ref>
+              <Ref name="Part0">145</Ref>
+              <Ref name="Part1">211</Ref>
               <bool name="DefinesCapabilities">false</bool>
               <BinaryString name="SerializedOverrides">
               </BinaryString>
@@ -18732,7 +19449,7 @@ return ModelFactory
             </Properties>
           </Item>
         </Item>
-        <Item class="AnimationController" referent="214">
+        <Item class="AnimationController" referent="215">
           <Properties>
             <string name="Name">AnimationController</string>
             <BinaryString name="AttributesSerialize"></BinaryString>
@@ -18743,7 +19460,7 @@ return ModelFactory
             <int64 name="SourceAssetId">-1</int64>
             <BinaryString name="Tags"></BinaryString>
           </Properties>
-          <Item class="Animator" referent="215">
+          <Item class="Animator" referent="216">
             <Properties>
               <string name="Name">Animator</string>
               <BinaryString name="AttributesSerialize"></BinaryString>
@@ -18760,13 +19477,13 @@ return ModelFactory
       </Item>
     </Item>
   </Item>
-  <Item class="SoundService" referent="216">
+  <Item class="SoundService" referent="217">
     <Properties>
       <string name="Name">SoundService</string>
       <bool name="RespectFilteringEnabled">true</bool>
     </Properties>
   </Item>
-  <Item class="StarterPlayer" referent="217">
+  <Item class="StarterPlayer" referent="218">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <float name="CameraMaxZoomDistance">52</float>
@@ -18778,11 +19495,11 @@ return ModelFactory
       <token name="DevComputerMovementMode">0</token>
       <token name="DevTouchMovementMode">0</token>
     </Properties>
-    <Item class="StarterCharacterScripts" referent="218">
+    <Item class="StarterCharacterScripts" referent="219">
       <Properties>
         <string name="Name">StarterCharacterScripts</string>
       </Properties>
-      <Item class="Script" referent="219">
+      <Item class="Script" referent="220">
         <Properties>
           <string name="Name">Health</string>
           <token name="RunContext">0</token>
@@ -18792,11 +19509,11 @@ return ModelFactory
         </Properties>
       </Item>
     </Item>
-    <Item class="StarterPlayerScripts" referent="220">
+    <Item class="StarterPlayerScripts" referent="221">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="LocalScript" referent="221">
+      <Item class="LocalScript" referent="222">
         <Properties>
           <string name="Name">ClientBootstrap</string>
           <string name="Source"><![CDATA[--[[
@@ -18827,6 +19544,7 @@ local REQUIRED_CLIENT_MODULES = {
 	{ "UI", "Theme" },
 	{ "Util", "Sfx" },
 	{ "Util", "FxPool" },
+	{ "Util", "AuraSystem" },
 	{ "Controllers", "InputController" },
 	{ "Controllers", "CameraController" },
 	{ "Controllers", "HUDController" },
@@ -18836,6 +19554,8 @@ local REQUIRED_CLIENT_MODULES = {
 	{ "Controllers", "EnemyVisualsController" },
 	{ "Controllers", "MusicController" },
 	{ "Controllers", "DebugController" },
+	{ "Controllers", "CharacterFxController" },
+	{ "Controllers", "AmbientController" },
 }
 for _, path in REQUIRED_CLIENT_MODULES do
 	waitFor(root, path)
@@ -18852,6 +19572,7 @@ for _, path in
 		{ "Config", "WeaponConfig" },
 		{ "Config", "EnemyConfig" },
 		{ "Config", "UpgradeConfig" },
+		{ "Config", "VisualConfig" },
 	}
 do
 	waitFor(Shared, path)
@@ -18871,6 +19592,8 @@ local controllers = {
 	EnemyVisualsController = require(ControllersFolder.EnemyVisualsController),
 	MusicController = require(ControllersFolder.MusicController),
 	DebugController = require(ControllersFolder.DebugController),
+	CharacterFxController = require(ControllersFolder.CharacterFxController),
+	AmbientController = require(ControllersFolder.AmbientController),
 }
 local START_ORDER = {
 	"InputController",
@@ -18882,6 +19605,8 @@ local START_ORDER = {
 	"EnemyVisualsController",
 	"MusicController",
 	"DebugController",
+	"CharacterFxController",
+	"AmbientController",
 }
 
 Theme.StartAutoScale()
@@ -18899,11 +19624,220 @@ Net.ClientReady:FireServer()
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="222">
+      <Item class="Folder" referent="223">
         <Properties>
           <string name="Name">Controllers</string>
         </Properties>
-        <Item class="ModuleScript" referent="223">
+        <Item class="ModuleScript" referent="224">
+          <Properties>
+            <string name="Name">AmbientController</string>
+            <string name="Source"><![CDATA[--[[
+	AmbientController
+	Vida ambiental del mundo (solo cliente, solo visual):
+
+	  • Ciclo de luz local: la hora oscila entre la tarde y el atardecer dorado
+	    (VisualConfig.DayCycle); la atmósfera se calienta hacia el atardecer.
+	  • Gradación de color por zona (Bosque Sakura, Jardín Corrompido, Santuario
+	    Celestial, Ruinas): un tinte suave que ayuda a reconocer dónde estás.
+	  • Pétalos de sakura alrededor del jugador mientras está en el bosque.
+	  • Cristales con el atributo "Float" flotan y oscilan.
+	  • En calidad baja se apagan los emisores marcados "Ambient" y los pétalos.
+	  • Atenuado por oclusión: árboles y rocas altos que quedan entre la cámara y
+	    el personaje se vuelven semitransparentes (las piezas decorativas no
+	    colisionan, así que la cámara de Roblox no las esquiva).
+]]
+
+local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local VisualConfig = require(ReplicatedStorage.Shared.Config.VisualConfig)
+local AuraSystem = require(script.Parent.Parent.Util.AuraSystem)
+
+local AmbientController = {}
+
+local player = Players.LocalPlayer
+local floaters: { { Model: Model, Base: CFrame, Amplitude: number, Phase: number } } = {}
+local ambientEmitters: { ParticleEmitter } = {}
+type Occluder = { Parts: { BasePart }, Center: Vector3, Radius: number, Alpha: number }
+local occluders: { Occluder } = {}
+local OCCLUDED_ALPHA = 0.72
+local petals: ParticleEmitter
+local petalPart: Part
+local zoneGrade: ColorCorrectionEffect
+local currentTint = Color3.new(1, 1, 1)
+local startClock = os.clock()
+
+local function collect(map: Instance)
+	table.clear(floaters)
+	table.clear(ambientEmitters)
+	table.clear(occluders)
+	for _, descendant in map:GetDescendants() do
+		local height = descendant:GetAttribute("KitHeight")
+		if descendant:IsA("Model") and type(height) == "number" and height > 5 then
+			local parts = {}
+			for _, part in descendant:GetDescendants() do
+				if part:IsA("BasePart") then
+					table.insert(parts, part)
+				end
+			end
+			table.insert(occluders, {
+				Parts = parts,
+				Center = descendant:GetPivot().Position + Vector3.new(0, height / 2, 0),
+				Radius = math.max(descendant:GetAttribute("KitRadius") or 2, height * 0.35),
+				Alpha = 0,
+			})
+		end
+		if descendant:IsA("Model") and descendant:GetAttribute("Float") then
+			table.insert(floaters, {
+				Model = descendant,
+				Base = descendant:GetPivot(),
+				Amplitude = descendant:GetAttribute("Float"),
+				Phase = math.random() * math.pi * 2,
+			})
+		elseif descendant:IsA("ParticleEmitter") and descendant:GetAttribute("Ambient") then
+			table.insert(ambientEmitters, descendant)
+		end
+	end
+end
+
+local function applyQuality()
+	local ambient = AuraSystem.GetQuality().Ambient
+	for _, emitter in ambientEmitters do
+		emitter.Enabled = ambient
+	end
+end
+
+local function zoneAt(position: Vector3): any?
+	local best, bestDistance = nil, math.huge
+	for _, zone in VisualConfig.Zones do
+		if zone.Center then
+			local d = Vector3.new(position.X - zone.Center.X, 0, position.Z - zone.Center.Z).Magnitude
+			if d < zone.Radius and d < bestDistance then
+				best, bestDistance = zone, d
+			end
+		end
+	end
+	return best
+end
+
+local function update(dt: number)
+	local now = os.clock()
+	-- Ciclo de luz (ida y vuelta, sin llegar a la noche).
+	local cycle = VisualConfig.DayCycle
+	local t = (math.sin((now - startClock) / cycle.Period * math.pi * 2 - math.pi / 2) + 1) / 2
+	Lighting.ClockTime = cycle.From + (cycle.To - cycle.From) * t
+	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
+	if atmosphere then
+		atmosphere.Color = Color3.fromRGB(200, 222, 255):Lerp(Color3.fromRGB(255, 214, 196), t * 0.7)
+	end
+
+	for _, floater in floaters do
+		local model = floater.Model
+		if model.Parent then
+			model:PivotTo(
+				floater.Base
+					* CFrame.new(0, math.sin(now * 1.3 + floater.Phase) * floater.Amplitude, 0)
+					* CFrame.Angles(0, now * 0.3, 0)
+			)
+		end
+	end
+
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local zone = root and zoneAt(root.Position)
+	local targetTint = if zone and zone.Tint then zone.Tint else Color3.new(1, 1, 1)
+	currentTint = currentTint:Lerp(targetTint, math.min(1, dt * 1.5))
+	zoneGrade.TintColor = currentTint
+
+	-- Oclusión: distancia de cada pieza alta al segmento cámara → cabeza.
+	local camera = Workspace.CurrentCamera
+	if root and camera then
+		local from = camera.CFrame.Position
+		local to = root.Position + Vector3.new(0, 1.5, 0)
+		local segment = to - from
+		local lengthSq = segment:Dot(segment)
+		for _, occluder in occluders do
+			local target = 0
+			if lengthSq > 1 then
+				local t = math.clamp((occluder.Center - from):Dot(segment) / lengthSq, 0, 1)
+				local closest = from + segment * t
+				if t < 0.94 and (occluder.Center - closest).Magnitude < occluder.Radius then
+					target = OCCLUDED_ALPHA
+				end
+			end
+			if math.abs(target - occluder.Alpha) > 0.01 then
+				occluder.Alpha += math.clamp(target - occluder.Alpha, -dt * 4, dt * 4)
+				for _, part in occluder.Parts do
+					part.LocalTransparencyModifier = occluder.Alpha
+				end
+			end
+		end
+	end
+
+	local inForest = zone == VisualConfig.Zones.Forest and AuraSystem.GetQuality().Ambient
+	petals.Enabled = inForest == true
+	if root and inForest then
+		petalPart.CFrame = CFrame.new(root.Position + Vector3.new(0, 18, 0))
+	end
+end
+
+function AmbientController.Init(_controllers) end
+
+function AmbientController.Start()
+	zoneGrade = Instance.new("ColorCorrectionEffect")
+	zoneGrade.Name = "SkyBonkZoneGrade"
+	zoneGrade.Parent = Lighting
+
+	petalPart = Instance.new("Part")
+	petalPart.Name = "SakuraPetals"
+	petalPart.Size = Vector3.new(70, 1, 70)
+	petalPart.Transparency = 1
+	petalPart.Anchored = true
+	petalPart.CanCollide = false
+	petalPart.CanQuery = false
+	petalPart.CanTouch = false
+	petalPart.Parent = Workspace
+	petals = Instance.new("ParticleEmitter")
+	petals.Texture = VisualConfig.Textures.Glow
+	petals.Color = ColorSequence.new(VisualConfig.Zones.Forest.Leaf, Color3.fromRGB(255, 220, 235))
+	petals.LightInfluence = 0.6
+	petals.Size = NumberSequence.new(0.35)
+	petals.Squash = NumberSequence.new(-0.6) -- pétalo aplanado
+	petals.Lifetime = NumberRange.new(5, 7)
+	petals.Speed = NumberRange.new(2, 4)
+	petals.EmissionDirection = Enum.NormalId.Bottom
+	petals.SpreadAngle = Vector2.new(30, 30)
+	petals.Rotation = NumberRange.new(0, 360)
+	petals.RotSpeed = NumberRange.new(-120, 120)
+	petals.Acceleration = Vector3.new(1.5, -0.5, 0.8)
+	petals.Rate = 14
+	petals.Enabled = false
+	petals.Parent = petalPart
+
+	task.spawn(function()
+		local map = Workspace:WaitForChild("Map", 30)
+		if map then
+			task.wait(1) -- el mapa termina de replicarse
+			collect(map)
+			applyQuality()
+		end
+	end)
+	AuraSystem.QualityChanged:Connect(applyQuality)
+	RunService.RenderStepped:Connect(function(dt)
+		debug.profilebegin("SkyBonk.Ambient")
+		update(dt)
+		debug.profileend()
+	end)
+end
+
+return AmbientController
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="225">
           <Properties>
             <string name="Name">CameraController</string>
             <string name="Source"><![CDATA[--[[
@@ -18921,6 +19855,7 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage.Shared
 local GameConfig = require(Shared.Config.GameConfig)
+local VisualConfig = require(Shared.Config.VisualConfig)
 local Net = require(Shared.Net)
 
 local CameraController = {}
@@ -18987,11 +19922,52 @@ CameraController.Shake = function(strength: number, duration: number)
 	shake(strength, duration)
 end
 
+--[[
+	Golpe de campo de visión (críticos, subida de nivel, jefe): abre el FOV
+	`amount` grados y vuelve suavemente al valor base. Nunca se acumula por
+	encima del mayor golpe activo y siempre termina en el FOV base.
+]]
+local fovKick = 0
+local fovConnection: RBXScriptConnection? = nil
+function CameraController.FovKick(amount: number, recover: number?)
+	fovKick = math.max(fovKick, amount)
+	local rate = fovKick / (recover or VisualConfig.Camera.FovRecover)
+	if fovConnection then
+		return
+	end
+	fovConnection = RunService.RenderStepped:Connect(function(dt)
+		local camera = Workspace.CurrentCamera
+		fovKick = math.max(0, fovKick - rate * dt)
+		if camera then
+			camera.FieldOfView = GameConfig.Player.CameraFieldOfView + fovKick
+		end
+		if fovKick <= 0 and fovConnection then
+			fovConnection:Disconnect()
+			fovConnection = nil
+		end
+	end)
+end
+
+-- Restablece cualquier efecto de cámara (muerte, reinicio).
+function CameraController.Reset()
+	fovKick = 0
+	shakeUntil = 0
+	local camera = Workspace.CurrentCamera
+	if camera then
+		camera.FieldOfView = GameConfig.Player.CameraFieldOfView
+	end
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.CameraOffset = Vector3.zero
+	end
+end
+
 function CameraController.Init(_controllers) end
 
 function CameraController.Start()
 	player.CameraMode = Enum.CameraMode.Classic
 	player.CharacterAdded:Connect(function()
+		CameraController.Reset()
 		applyZoom()
 	end)
 	if player.Character then
@@ -19006,7 +19982,319 @@ return CameraController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="224">
+        <Item class="ModuleScript" referent="226">
+          <Properties>
+            <string name="Name">CharacterFxController</string>
+            <string name="Source"><![CDATA[--[[
+	CharacterFxController
+	Presentación anime del personaje local (solo visual, sin efecto en el juego):
+
+	  • Aura según la build real (VisualConfig.PlayerAuraRules, a partir del HUD):
+	    Eléctrica (rayo), Ígnea (crítico), Arcana (experiencia/suerte), Celestial
+	    (defensa y ráfaga al subir de nivel) y Vacío (vida crítica).
+	  • Inclinación procedural: el torso se inclina hacia la curva y hacia atrás
+	    al frenar (Motor6D Root.C0; las animaciones usan Transform, no C0).
+	  • Estelas de viento al correr deprisa, impulso al saltar y polvo al aterrizar.
+	  • Retroceso breve al recibir daño.
+	  • Muerte: disolución y desaturación; reaparición: columna de luz.
+	El paquete de animaciones (Ninja, de Roblox) lo aplica el servidor al
+	script Animate del personaje (MatchService).
+]]
+
+local Lighting = game:GetService("Lighting")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+
+local Shared = ReplicatedStorage.Shared
+local VisualConfig = require(Shared.Config.VisualConfig)
+local Net = require(Shared.Net)
+local AuraSystem = require(script.Parent.Parent.Util.AuraSystem)
+local FxPool = require(script.Parent.Parent.Util.FxPool)
+
+local CharacterFxController = {}
+
+local MOTION = VisualConfig.Motion
+local RULES = VisualConfig.PlayerAuraRules
+local player = Players.LocalPlayer
+
+local controllers
+local aura: any = nil
+-- Articulación raíz del cuerpo: Motor6D (avatares antiguos) o AnimationConstraint
+-- (articulaciones actuales de Roblox, cuyo C0 es de solo lectura: se gira su
+-- Attachment0, que está en el HumanoidRootPart).
+local rootJoint: Motor6D? = nil
+local rootAttachment: Attachment? = nil
+local rootBaseC0 = CFrame.new()
+local humanoid: Humanoid? = nil
+local hrp: BasePart? = nil
+local lastVelocity = Vector3.zero
+local lean = Vector2.zero -- (cabeceo, alabeo)
+local recoil = 0
+local windTrails: { Trail } = {}
+local levelBurstUntil = 0
+local deathGrade: ColorCorrectionEffect
+local characterConnections: { RBXScriptConnection } = {}
+
+local function chooseProfile(): (string, number)
+	local snapshot = controllers.HUDController.GetSnapshot()
+	if os.clock() < levelBurstUntil then
+		return "Celestial", 1.4
+	end
+	if snapshot == nil or snapshot.MaxHealth <= 0 then
+		return RULES.Default, 0.4
+	end
+	local stats = snapshot.Stats or {}
+	-- La intensidad crece con el nivel: el personaje se ve cada vez más poderoso.
+	local intensity = math.clamp(0.35 + snapshot.Level * 0.05, 0.35, 1)
+	if snapshot.Health / snapshot.MaxHealth < RULES.CriticalHealthPct then
+		return "Void", 1
+	elseif (stats.Chain or 0) >= RULES.ChainForElectric then
+		return "Electric", math.min(1.2, intensity + 0.2)
+	elseif (stats.CritPct or 0) >= RULES.CritPctForFire then
+		return "Fire", intensity
+	elseif (stats.XpBonusPct or 0) >= RULES.XpBonusForArcane or (stats.Luck or 0) >= 2 then
+		return "Arcane", intensity
+	elseif (stats.Regen or 0) >= RULES.DefenseForCelestial or (stats.DamageReductionPct or 0) >= 20 then
+		return "Celestial", intensity
+	end
+	return RULES.Default, intensity
+end
+
+local function makeWindTrail(root: BasePart, offset: Vector3): Trail
+	local a0 = Instance.new("Attachment")
+	a0.Name = "WindA0"
+	a0.Position = offset
+	a0.Parent = root
+	local a1 = Instance.new("Attachment")
+	a1.Name = "WindA1"
+	a1.Position = offset + Vector3.new(0, 0.35, 0)
+	a1.Parent = root
+	local trail = Instance.new("Trail")
+	trail.Name = "WindTrail"
+	trail.Attachment0 = a0
+	trail.Attachment1 = a1
+	trail.Lifetime = 0.22
+	trail.LightEmission = 0.8
+	trail.FaceCamera = true
+	trail.Color = ColorSequence.new(Color3.new(1, 1, 1), VisualConfig.Palette.Player)
+	trail.Transparency = NumberSequence.new(0.35, 1)
+	trail.WidthScale = NumberSequence.new(1, 0)
+	trail.Enabled = false
+	trail.Parent = root
+	return trail
+end
+
+local function lightPillar(position: Vector3, color: Color3, height: number)
+	local pillar = Instance.new("Part")
+	pillar.Name = "LightPillar"
+	pillar.Shape = Enum.PartType.Cylinder
+	pillar.Size = Vector3.new(height, 0.6, 0.6)
+	pillar.CFrame = CFrame.new(position + Vector3.new(0, height / 2, 0)) * CFrame.Angles(0, 0, math.pi / 2)
+	pillar.Material = Enum.Material.Neon
+	pillar.Color = color
+	pillar.Transparency = 0.25
+	pillar.Anchored = true
+	pillar.CanCollide = false
+	pillar.CanQuery = false
+	pillar.CanTouch = false
+	pillar.CastShadow = false
+	pillar.Parent = FxPool.Folder()
+	local grow = TweenService:Create(pillar, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Size = Vector3.new(height, 6, 6),
+	})
+	grow:Play()
+	task.delay(0.18, function()
+		TweenService:Create(pillar, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Size = Vector3.new(height, 0.2, 0.2),
+			Transparency = 1,
+		}):Play()
+	end)
+	task.delay(0.75, function()
+		pillar:Destroy()
+	end)
+end
+
+local function onCharacter(character: Model)
+	for _, connection in characterConnections do
+		connection:Disconnect()
+	end
+	table.clear(characterConnections)
+	table.clear(windTrails)
+	if aura then
+		aura:Destroy()
+		aura = nil
+	end
+	local hum = character:WaitForChild("Humanoid", 10) :: Humanoid?
+	local root = character:WaitForChild("HumanoidRootPart", 10) :: BasePart?
+	if hum == nil or root == nil then
+		return
+	end
+	humanoid, hrp = hum, root
+	local lowerTorso = character:WaitForChild("LowerTorso", 3)
+	local joint = lowerTorso and lowerTorso:FindFirstChild("Root")
+	rootJoint, rootAttachment = nil, nil
+	if joint and joint:IsA("Motor6D") then
+		rootJoint = joint
+		rootBaseC0 = joint.C0
+	elseif joint and joint:IsA("AnimationConstraint") and joint.Attachment0 then
+		rootAttachment = joint.Attachment0
+		rootBaseC0 = joint.Attachment0.CFrame
+	end
+	lean = Vector2.zero
+	recoil = 0
+	lastVelocity = Vector3.zero
+
+	-- Aura: el suelo está a HipHeight + media altura del HumanoidRootPart.
+	local floorOffset = hum.HipHeight + root.Size.Y / 2
+	local profile, intensity = chooseProfile()
+	aura = AuraSystem.Attach(root, profile, { Height = 5.4, FloorOffset = floorOffset, Intensity = intensity })
+
+	for _, offset in { Vector3.new(-1.1, 0.4, 0.5), Vector3.new(1.1, 0.4, 0.5), Vector3.new(0, 1.6, 0.6) } do
+		table.insert(windTrails, makeWindTrail(root, offset))
+	end
+
+	-- Reaparición: columna de luz y ráfaga del aura; la pantalla recupera el color.
+	TweenService:Create(deathGrade, TweenInfo.new(0.6), { Saturation = 0, Brightness = 0, Contrast = 0 }):Play()
+	local feet = root.Position - Vector3.new(0, floorOffset, 0)
+	lightPillar(feet, VisualConfig.Palette.PlayerCore, 40)
+	FxPool.Ring(feet + Vector3.new(0, 0.2, 0), 2, 16, 0.5, VisualConfig.Palette.Player, 0.2, 0.2)
+	FxPool.Emit("Sparkles", root.Position, 30)
+	aura:Burst(1)
+
+	table.insert(
+		characterConnections,
+		hum.StateChanged:Connect(function(_, new)
+			if new == Enum.HumanoidStateType.Jumping then
+				FxPool.Ring(
+					root.Position - Vector3.new(0, floorOffset - 0.2, 0),
+					1.5,
+					7,
+					0.3,
+					Color3.new(1, 1, 1),
+					0.4,
+					0.12
+				)
+			elseif new == Enum.HumanoidStateType.Landed then
+				if -lastVelocity.Y >= MOTION.LandingMinFall then
+					local ground = root.Position - Vector3.new(0, floorOffset - 0.2, 0)
+					FxPool.Emit("Dust", ground, math.floor(math.clamp(-lastVelocity.Y / 3, 6, 18)))
+					FxPool.Ring(ground, 2, 9, 0.35, Color3.fromRGB(235, 225, 205), 0.45, 0.12)
+					recoil = math.max(recoil, MOTION.HitRecoil * 0.6) -- amortigua el aterrizaje
+				end
+			end
+		end)
+	)
+	table.insert(
+		characterConnections,
+		hum.Died:Connect(function()
+			-- Disolución: partículas del vacío sobre cada pieza y pantalla desaturada.
+			for _, part in character:GetChildren() do
+				if part:IsA("BasePart") then
+					FxPool.Emit("DeathBurst", part.Position, 3, VisualConfig.Palette.Void)
+				end
+			end
+			FxPool.Emit("Sparkles", root.Position, 24)
+			TweenService
+				:Create(deathGrade, TweenInfo.new(0.8), { Saturation = -0.7, Brightness = -0.05, Contrast = 0.1 })
+				:Play()
+			controllers.CameraController.Reset()
+			if aura then
+				aura:SetProfile("Void")
+				aura:Burst(0.6)
+			end
+		end)
+	)
+end
+
+local function update(dt: number)
+	local root, hum = hrp, humanoid
+	if root == nil or hum == nil or root.Parent == nil then
+		return
+	end
+	local velocity = root.AssemblyLinearVelocity
+	local flat = Vector3.new(velocity.X, 0, velocity.Z)
+	local speed = flat.Magnitude
+	if dt > 0 and hum.Health > 0 then
+		-- Inclinación: aceleración en el espacio del personaje.
+		local accel = (flat - Vector3.new(lastVelocity.X, 0, lastVelocity.Z)) / dt
+		local localAccel = root.CFrame:VectorToObjectSpace(accel)
+		local localVel = root.CFrame:VectorToObjectSpace(flat)
+		-- X negativo = hacia delante (al correr); positivo = hacia atrás (al frenar o recibir un golpe).
+		local targetPitch = math.clamp(localVel.Z * 0.006 + localAccel.Z * 0.004, -MOTION.MaxLean, MOTION.MaxLean)
+		local targetRoll = math.clamp(-localAccel.X * 0.006, -MOTION.MaxLean, MOTION.MaxLean)
+		local alpha = math.min(1, dt * MOTION.LeanResponsiveness)
+		lean = lean:Lerp(Vector2.new(targetPitch, targetRoll), alpha)
+		recoil = math.max(0, recoil - dt * 1.5)
+		local tilt = rootBaseC0 * CFrame.Angles(lean.X + recoil, 0, lean.Y)
+		if rootJoint and rootJoint.Parent then
+			rootJoint.C0 = tilt
+		elseif rootAttachment and rootAttachment.Parent then
+			rootAttachment.CFrame = tilt
+		end
+	end
+	lastVelocity = velocity
+
+	local fast = speed >= MOTION.SpeedlineSpeed and AuraSystem.GetQuality().Speedlines and hum.Health > 0
+	for _, trail in windTrails do
+		if trail.Enabled ~= fast then
+			trail.Enabled = fast
+		end
+	end
+end
+
+function CharacterFxController.Init(allControllers)
+	controllers = allControllers
+end
+
+function CharacterFxController.Start()
+	AuraSystem.Start()
+	deathGrade = Instance.new("ColorCorrectionEffect")
+	deathGrade.Name = "SkyBonkDeathGrade"
+	deathGrade.Parent = Lighting
+
+	player.CharacterAdded:Connect(onCharacter)
+	if player.Character then
+		task.spawn(onCharacter, player.Character)
+	end
+	Net.LevelUp.OnClientEvent:Connect(function()
+		levelBurstUntil = os.clock() + RULES.LevelUpBurst
+		if aura then
+			aura:SetProfile("Celestial")
+			aura:Burst(RULES.LevelUpBurst)
+		end
+		controllers.CameraController.FovKick(VisualConfig.Camera.LevelUpFovKick, 0.6)
+	end)
+	Net.PlayerDamaged.OnClientEvent:Connect(function()
+		recoil = math.max(recoil, MOTION.HitRecoil)
+	end)
+	controllers.InputController.ToggleFx:Connect(function()
+		AuraSystem.ToggleQuality()
+	end)
+	-- El aura se revisa 4 veces por segundo (la build cambia al elegir mejoras).
+	task.spawn(function()
+		while true do
+			task.wait(0.25)
+			if aura and humanoid and humanoid.Health > 0 then
+				local profile, intensity = chooseProfile()
+				aura:SetProfile(profile)
+				aura:SetIntensity(intensity)
+			end
+		end
+	end)
+	RunService.RenderStepped:Connect(function(dt)
+		debug.profilebegin("SkyBonk.CharacterFx")
+		update(dt)
+		debug.profileend()
+	end)
+end
+
+return CharacterFxController
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="227">
           <Properties>
             <string name="Name">CombatEffectsController</string>
             <string name="Source"><![CDATA[--[[
@@ -19040,6 +20328,7 @@ local Shared = ReplicatedStorage.Shared
 local GameConfig = require(Shared.Config.GameConfig)
 local WeaponConfig = require(Shared.Config.WeaponConfig)
 local Net = require(Shared.Net)
+local VisualConfig = require(Shared.Config.VisualConfig)
 local Sfx = require(script.Parent.Parent.Util.Sfx)
 local FxPool = require(script.Parent.Parent.Util.FxPool)
 
@@ -19087,6 +20376,9 @@ local slashIndex = 0
 local swordTrail: Trail? = nil
 local swordTrailUntil = 0
 local swordGlow = 0
+local slashSide = 1 -- alterna tajos de izquierda a derecha y al revés
+local lastCritKickAt = 0
+local SWORD = VisualConfig.Weapons.GaleSword
 
 local function character(): Model?
 	return player.Character
@@ -19376,6 +20668,29 @@ local function onCombatFx(attack)
 	task.delay(windup * 0.6, function()
 		Sfx.Play("Attack", 1 + (#attack.Shots - 1) * 0.04)
 	end)
+	-- Corte en media luna en el instante del tajo, orientado al primer objetivo.
+	local firstShot = attack.Shots[1]
+	task.delay(windup * 0.8, function()
+		local root = rootPart()
+		if root == nil or firstShot == nil or typeof(firstShot.Position) ~= "Vector3" then
+			return
+		end
+		local chest = root.Position + Vector3.new(0, 1.1, 0)
+		local target = Vector3.new(firstShot.Position.X, chest.Y, firstShot.Position.Z)
+		if (target - chest).Magnitude < 0.5 then
+			return
+		end
+		local facing = CFrame.lookAt(chest, target)
+		slashSide = -slashSide
+		local radius = 3.2 * (1 + swordGlow * 0.1)
+		FxPool.Slash(
+			facing * CFrame.new(0, 0, -2.4),
+			radius,
+			SWORD.Slash,
+			slashSide * (0.3 + math.random() * 0.25),
+			0.2
+		)
+	end)
 	local now = os.clock()
 	local scale = 1 + swordGlow * 0.08
 	for index, shot in attack.Shots do
@@ -19412,12 +20727,26 @@ local function onCombatHits(payload)
 		local model = if typeof(hit.Model) == "Instance" then hit.Model else nil
 		local position = modelPosition(model) or hit.Position
 		showDamageNumber(position, hit.Damage, hit.Killed == true, hit.Crit == true, hit.Chain == true)
+		local impact = position + Vector3.new(0, 1, 0)
 		if hit.Crit then
+			-- Crítico: estrella dorada, destello mayor y un pequeño golpe de FOV.
 			anyCrit = true
-			FxPool.Emit("CritSparks", position + Vector3.new(0, 1, 0), 10)
+			FxPool.Emit("CritSparks", impact, 10)
+			FxPool.Star(impact, SWORD.SlashCrit, 6)
+			FxPool.ImpactFlash(impact, SWORD.SlashCrit, 3)
+			local now = os.clock()
+			if now - lastCritKickAt > 0.4 then
+				lastCritKickAt = now
+				controllers.CameraController.FovKick(VisualConfig.Camera.CritFovKick, 0.25)
+			end
+		elseif hit.Chain then
+			FxPool.ImpactFlash(impact, Color3.fromRGB(190, 200, 255), 1.6)
+		else
+			FxPool.ImpactFlash(impact, Color3.new(1, 1, 1), 1.4 + math.random() * 0.8)
 		end
 		if hit.Killed then
 			anyKill = true
+			FxPool.Ring(position - Vector3.new(0, 1.3, 0), 1, 6, 0.25, SWORD.Edge, 0.35, 0.12)
 		end
 		if model then
 			controllers.EnemyVisualsController.OnHit(model, hit.Crit == true)
@@ -19728,7 +21057,7 @@ return CombatEffectsController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="225">
+        <Item class="ModuleScript" referent="228">
           <Properties>
             <string name="Name">DebugController</string>
             <string name="Source"><![CDATA[--[[
@@ -19885,7 +21214,7 @@ return DebugController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="226">
+        <Item class="ModuleScript" referent="229">
           <Properties>
             <string name="Name">EnemyVisualsController</string>
             <string name="Source"><![CDATA[--[[
@@ -19916,9 +21245,11 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage.Shared
 local GameConfig = require(Shared.Config.GameConfig)
+local VisualConfig = require(Shared.Config.VisualConfig)
 local EnemyConfig = require(Shared.Config.EnemyConfig)
 local Sfx = require(script.Parent.Parent.Util.Sfx)
 local FxPool = require(script.Parent.Parent.Util.FxPool)
+local AuraSystem = require(script.Parent.Parent.Util.AuraSystem)
 
 local EnemyVisualsController = {}
 
@@ -19955,6 +21286,7 @@ type Visual = {
 	BodyColor: Color3,
 	Extras: { BasePart }, -- ojos, núcleo, corona (se ocultan al aparecer/morir)
 	Telegraph: Part?,
+	Aura: any?, -- aura del jefe (AuraSystem)
 	-- Esqueleto
 	RigWeld: Weld?,
 	RigBaseC0: CFrame,
@@ -19965,6 +21297,7 @@ type Visual = {
 }
 
 local visuals: { [Model]: Visual } = {}
+local controllersRef: any = nil
 local animations: { [string]: Animation } = {}
 local ragdolls = 0
 
@@ -20098,15 +21431,29 @@ local function onStateChanged(visual: Visual)
 		Sfx.PlayAt("EnemyWindup", position, if def.AttackKind == "Slam" then 0.7 else 1.1)
 		if def.AttackKind == "Slam" then
 			-- Zona de peligro del Rey: crece durante la anticipación.
+			-- Va por encima del anillo del aura (más alto y más opaco): el peligro
+			-- siempre se lee, aunque haya efectos alrededor.
 			visual.Telegraph = FxPool.Ring(
-				position - Vector3.new(0, visual.Root.Size.Y / 2 - 0.1, 0),
+				position - Vector3.new(0, visual.Root.Size.Y / 2 - 0.3, 0),
 				1,
 				def.HitRange * 2,
 				visual.StateDuration,
 				WARNING,
-				0.55,
-				0.12
+				0.35,
+				0.22
 			)
+			FxPool.Ring(
+				position - Vector3.new(0, visual.Root.Size.Y / 2 - 0.28, 0),
+				def.HitRange * 2,
+				def.HitRange * 2,
+				visual.StateDuration,
+				WARNING,
+				0.7,
+				0.16
+			)
+			if visual.Aura then
+				visual.Aura:Burst(visual.StateDuration)
+			end
 		elseif visual.Kind == "Skeleton" then
 			local track = visual.Tracks.Attack
 			if track then
@@ -20234,18 +21581,62 @@ local function track(model: Instance)
 		end)
 	)
 	visuals[model] = visual
-	if visual.State == "Spawning" then
+	local entering = visual.State == "Spawning"
+	if entering then
 		visual.State = "" -- fuerza el efecto de aparición
 		onStateChanged(visual)
 		Sfx.PlayAt("EnemySpawn", root.Position, 1, 70)
 	end
+	if def.Scale > 1.5 then
+		-- Jefe: aura propia siempre visible (es información, no decoración).
+		visual.Aura = AuraSystem.Attach(root, "Boss", {
+			Scale = def.Scale * 0.5,
+			Height = root.Size.Y * 1.4,
+			FloorOffset = root.Size.Y / 2,
+			Intensity = 1,
+		})
+		if entering then
+			EnemyVisualsController.BossEntrance(visual)
+		end
+	end
+	local flame = model:FindFirstChild("SkullFlame", true) :: ParticleEmitter?
+	if flame then
+		flame.Enabled = AuraSystem.GetQuality().EnemyAuras
+	end
 	updateBar(visual)
+end
+
+-- Entrada del jefe: erupción, temblor, golpe de FOV y franjas de cine con rótulo.
+function EnemyVisualsController.BossEntrance(visual: Visual)
+	local position = visual.Root.Position
+	local ground = position - Vector3.new(0, visual.Root.Size.Y / 2 - 0.2, 0)
+	FxPool.Ring(ground, 2, 34, 0.9, visual.Def.Color, 0.15, 0.3)
+	FxPool.Ring(ground, 1, 20, 0.6, Color3.fromRGB(255, 200, 90), 0.3, 0.2)
+	FxPool.Emit("Dust", ground, 30)
+	FxPool.Emit("DeathBurst", position, 30, visual.Def.Color)
+	Sfx.PlayAt("BossSlam", position, 0.6, 200)
+	EnemyVisualsController.Shake(0.45, 0.5)
+	if controllersRef then
+		controllersRef.CameraController.FovKick(VisualConfig.Camera.BossFovKick, 0.9)
+		controllersRef.HUDController.Cinematic(
+			"¡" .. string.upper(visual.Def.DisplayName) .. "!",
+			"Un jefe ha despertado · esquiva su golpe en área",
+			VisualConfig.Camera.LetterboxTime
+		)
+	end
+	if visual.Aura then
+		visual.Aura:Burst(1.5)
+	end
 end
 
 local function untrack(model: Instance)
 	local visual = visuals[model :: Model]
 	if visual == nil then
 		return
+	end
+	if visual.Aura then
+		visual.Aura:Destroy()
+		visual.Aura = nil
 	end
 	for _, connection in visual.Connections do
 		connection:Disconnect()
@@ -20288,8 +21679,20 @@ function EnemyVisualsController.OnDied(model: Model?, position: Vector3, color: 
 	FxPool.Emit("DeathBurst", position, if big then 40 else FX.DeathBurstParticles, color)
 	Sfx.PlayAt("EnemyDeath", position, if big then 0.7 else 0.9 + math.random() * 0.25, 110)
 	if big then
-		FxPool.Ring(position - Vector3.new(0, 2, 0), 4, 26, 0.6, color, 0.3, 0.3)
-		EnemyVisualsController.Shake(0.4, 0.2)
+		-- Muerte del jefe: doble onda, estrella dorada y golpe de FOV.
+		FxPool.Ring(position - Vector3.new(0, 2, 0), 4, 30, 0.7, color, 0.25, 0.3)
+		FxPool.Ring(position - Vector3.new(0, 2, 0), 2, 18, 0.5, Color3.fromRGB(255, 200, 90), 0.3, 0.2)
+		FxPool.Star(position + Vector3.new(0, 2, 0), Color3.fromRGB(255, 200, 90), 14)
+		FxPool.Emit("Sparkles", position, 40)
+		EnemyVisualsController.Shake(0.5, 0.3)
+		if controllersRef then
+			controllersRef.CameraController.FovKick(VisualConfig.Camera.BossFovKick, 0.6)
+		end
+	end
+	local deadVisual = model and visuals[model]
+	if deadVisual and deadVisual.Aura then
+		deadVisual.Aura:Destroy()
+		deadVisual.Aura = nil
 	end
 	local visual = model and visuals[model]
 	if visual == nil or visual.Dying then
@@ -20476,10 +21879,20 @@ local function update(dt: number)
 end
 
 function EnemyVisualsController.Init(controllers)
+	controllersRef = controllers
 	shakeFn = controllers.CameraController.Shake
 end
 
 function EnemyVisualsController.Start()
+	AuraSystem.QualityChanged:Connect(function()
+		local enabled = AuraSystem.GetQuality().EnemyAuras
+		for model in visuals do
+			local flame = model:FindFirstChild("SkullFlame", true) :: ParticleEmitter?
+			if flame then
+				flame.Enabled = enabled
+			end
+		end
+	end)
 	task.spawn(function()
 		local list = {}
 		for _, id in { ANIMS.SkeletonIdle, ANIMS.SkeletonWalk, ANIMS.SkeletonRun, ANIMS.SkeletonAttack } do
@@ -20502,7 +21915,7 @@ return EnemyVisualsController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="227">
+        <Item class="ModuleScript" referent="230">
           <Properties>
             <string name="Name">GameOverController</string>
             <string name="Source"><![CDATA[--[[
@@ -20715,7 +22128,7 @@ return GameOverController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="228">
+        <Item class="ModuleScript" referent="231">
           <Properties>
             <string name="Name">HUDController</string>
             <string name="Source"><![CDATA[--[[
@@ -20724,7 +22137,8 @@ return GameOverController
 	  • nivel, barra de experiencia, tiempo y enemigos derrotados (arriba),
 	  • vida actual/máxima (arriba a la izquierda),
 	  • panel de estadísticas plegable (Tab / C o botón táctil),
-	  • rótulo de subida de nivel y viñeta roja al recibir daño.
+	  • rótulo de subida de nivel y viñeta roja al recibir daño,
+	  • barra del jefe, franjas de cine para su entrada y botón de calidad FX.
 	Solo muestra el estado que envía el servidor; no decide nada.
 ]]
 
@@ -20738,6 +22152,7 @@ local GameConfig = require(Shared.Config.GameConfig)
 local Net = require(Shared.Net)
 local Types = require(Shared.Types)
 local Theme = require(script.Parent.Parent.UI.Theme)
+local AuraSystem = require(script.Parent.Parent.Util.AuraSystem)
 
 local HUDController = {}
 
@@ -20812,7 +22227,7 @@ local function buildTopPanel()
 		Size = UDim2.new(1, 0, 0, 34),
 		Position = UDim2.fromOffset(0, 21),
 		Text = "1",
-		Font = Theme.Fonts.Title,
+		Font = Theme.Fonts.Numbers,
 		TextSize = 30,
 		Parent = badge,
 	})
@@ -20997,11 +22412,12 @@ local function buildBannerAndVignette()
 		Visible = false,
 		Parent = gui,
 	})
+	-- Solo los bordes y semitransparente: avisa del golpe sin tapar el combate.
 	local edges = {
-		{ UDim2.fromScale(1, 0.22), UDim2.fromScale(0, 0), 90 },
-		{ UDim2.fromScale(1, 0.22), UDim2.fromScale(0, 0.78), -90 },
-		{ UDim2.fromScale(0.16, 1), UDim2.fromScale(0, 0), 0 },
-		{ UDim2.fromScale(0.16, 1), UDim2.fromScale(0.84, 0), 180 },
+		{ UDim2.fromScale(1, 0.1), UDim2.fromScale(0, 0), 90 },
+		{ UDim2.fromScale(1, 0.1), UDim2.fromScale(0, 0.9), -90 },
+		{ UDim2.fromScale(0.07, 1), UDim2.fromScale(0, 0), 0 },
+		{ UDim2.fromScale(0.07, 1), UDim2.fromScale(0.93, 0), 180 },
 	}
 	for _, edge in edges do
 		New("Frame", {
@@ -21014,13 +22430,211 @@ local function buildBannerAndVignette()
 			New("UIGradient", {
 				Rotation = edge[3],
 				Transparency = NumberSequence.new({
-					NumberSequenceKeypoint.new(0, 0.35),
+					NumberSequenceKeypoint.new(0, 0.55),
 					NumberSequenceKeypoint.new(1, 1),
 				}),
 			}),
 		})
 	end
 	refs.Vignette = vignette
+end
+
+--------------------------------------------- Jefe, cinemática y calidad
+-- Barra del jefe (Rey Slime): se muestra mientras haya uno vivo.
+local function buildBossBar()
+	local panel = New("Frame", {
+		Name = "BossBar",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 80),
+		Size = UDim2.fromOffset(460, 44),
+		BackgroundTransparency = 1,
+		Visible = false,
+		Parent = gui,
+	})
+	Theme.Scaled(panel)
+	refs.BossName = Theme.Label({
+		Size = UDim2.new(1, 0, 0, 20),
+		Text = "REY SLIME DEL VACÍO",
+		Font = Theme.Fonts.Title,
+		TextSize = 22,
+		TextColor3 = C.Boss:Lerp(Color3.new(1, 1, 1), 0.35),
+		TextStrokeTransparency = 0.2,
+		Parent = panel,
+	})
+	local _, fill, barText = Theme.Bar({
+		Name = "Bar",
+		Position = UDim2.fromOffset(0, 22),
+		Size = UDim2.new(1, 0, 0, 16),
+		Parent = panel,
+	}, C.Boss, C.Shadow)
+	barText.Text = ""
+	refs.BossPanel, refs.BossFill = panel, fill
+end
+
+local bossModel: Model? = nil
+local bossConnection: RBXScriptConnection? = nil
+
+local function setBoss(model: Model?)
+	if bossConnection then
+		bossConnection:Disconnect()
+		bossConnection = nil
+	end
+	bossModel = model
+	refs.BossPanel.Visible = model ~= nil
+	if model == nil then
+		return
+	end
+	local function refresh()
+		local health = model:GetAttribute("Health")
+		local maxHealth = model:GetAttribute("MaxHealth")
+		if type(health) == "number" and type(maxHealth) == "number" and maxHealth > 0 then
+			tween(refs.BossFill, 0.15, { Size = UDim2.fromScale(math.clamp(health / maxHealth, 0, 1), 1) })
+		end
+		if model:GetAttribute("Dead") or model.Parent == nil then
+			setBoss(nil)
+		end
+	end
+	bossConnection = model.AttributeChanged:Connect(refresh)
+	refresh()
+end
+
+local function watchBosses()
+	local enemies = workspace:WaitForChild("ActiveEnemies")
+	enemies.ChildAdded:Connect(function(child)
+		task.defer(function()
+			if child:GetAttribute("EnemyId") == "VoidKing" then
+				setBoss(child :: Model)
+			end
+		end)
+	end)
+	enemies.ChildRemoved:Connect(function(child)
+		if child == bossModel then
+			setBoss(nil)
+			-- Si queda otro rey vivo, pasa a mostrarse el suyo.
+			for _, other in enemies:GetChildren() do
+				if other:GetAttribute("EnemyId") == "VoidKing" and not other:GetAttribute("Dead") then
+					setBoss(other :: Model)
+					break
+				end
+			end
+		end
+	end)
+end
+
+-- Franjas de cine con rótulo (entrada del jefe). No bloquea el control.
+local function buildCinematic()
+	-- ZIndex 0: las franjas quedan por detrás del HUD (vida y XP siguen visibles).
+	local layer = New("Frame", {
+		Name = "Cinematic",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+		Visible = false,
+		ZIndex = 0,
+		Parent = gui,
+	})
+	refs.CinemaTop = New("Frame", {
+		Size = UDim2.new(1, 0, 0.08, 0),
+		Position = UDim2.fromScale(0, -0.08),
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		BorderSizePixel = 0,
+		Parent = layer,
+	})
+	refs.CinemaBottom = New("Frame", {
+		AnchorPoint = Vector2.new(0, 1),
+		Size = UDim2.new(1, 0, 0.08, 0),
+		Position = UDim2.fromScale(0, 1.08),
+		BackgroundColor3 = Color3.new(0, 0, 0),
+		BorderSizePixel = 0,
+		Parent = layer,
+	})
+	refs.CinemaTitle = Theme.Label({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.22),
+		Size = UDim2.fromOffset(700, 70),
+		Text = "",
+		Font = Theme.Fonts.Title,
+		TextSize = 56,
+		TextColor3 = C.Boss:Lerp(Color3.new(1, 1, 1), 0.3),
+		TextStrokeTransparency = 0,
+		TextTransparency = 1,
+		Parent = layer,
+	})
+	refs.CinemaSubtitle = Theme.Label({
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.29),
+		Size = UDim2.fromOffset(700, 30),
+		Text = "",
+		Font = Theme.Fonts.Bold,
+		TextSize = 20,
+		TextTransparency = 1,
+		Parent = layer,
+	})
+	refs.Cinematic = layer
+end
+
+local cinemaToken = 0
+function HUDController.Cinematic(title: string, subtitle: string, duration: number)
+	cinemaToken += 1
+	local token = cinemaToken
+	local layer = refs.Cinematic
+	layer.Visible = true
+	refs.CinemaTitle.Text = title
+	refs.CinemaSubtitle.Text = subtitle
+	refs.CinemaTitle.Size = UDim2.fromOffset(500, 50)
+	tween(refs.CinemaTop, 0.3, { Position = UDim2.fromScale(0, 0) })
+	tween(refs.CinemaBottom, 0.3, { Position = UDim2.fromScale(0, 1) })
+	tween(refs.CinemaTitle, 0.35, { TextTransparency = 0, Size = UDim2.fromOffset(700, 70) }, Enum.EasingStyle.Back)
+	tween(refs.CinemaSubtitle, 0.4, { TextTransparency = 0 })
+	task.delay(duration, function()
+		if token ~= cinemaToken then
+			return
+		end
+		tween(refs.CinemaTop, 0.35, { Position = UDim2.fromScale(0, -0.08) })
+		tween(refs.CinemaBottom, 0.35, { Position = UDim2.fromScale(0, 1.08) })
+		tween(refs.CinemaTitle, 0.3, { TextTransparency = 1 })
+		tween(refs.CinemaSubtitle, 0.3, { TextTransparency = 1 })
+		task.delay(0.4, function()
+			if token == cinemaToken then
+				layer.Visible = false
+			end
+		end)
+	end)
+end
+
+-- Botón de calidad de efectos (también tecla G).
+local function buildFxButton()
+	local button = New("TextButton", {
+		Name = "FxButton",
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -12, 1, -12),
+		Size = UDim2.fromOffset(118, 34),
+		BackgroundColor3 = C.Panel,
+		BackgroundTransparency = 0.15,
+		AutoButtonColor = true,
+		Text = "",
+		Parent = gui,
+	}, {
+		Theme.Corner(8),
+		Theme.Stroke(C.PanelStroke, 2, 0.4),
+	})
+	Theme.Scaled(button)
+	local label = Theme.Label({
+		Size = UDim2.fromScale(1, 1),
+		Text = "",
+		Font = Theme.Fonts.Bold,
+		TextSize = 15,
+		Parent = button,
+	})
+	local function refresh()
+		local high = AuraSystem.GetQualityName() == "High"
+		label.Text = if high then "✨ FX: ALTO  [G]" else "FX: BAJO  [G]"
+		label.TextColor3 = if high then C.Accent else C.TextDim
+	end
+	button.Activated:Connect(function()
+		AuraSystem.ToggleQuality()
+	end)
+	AuraSystem.QualityChanged:Connect(refresh)
+	refresh()
 end
 
 function HUDController.ToggleStats()
@@ -21109,6 +22723,10 @@ function HUDController.Start()
 	buildHealthPanel()
 	buildStatsPanel()
 	buildBannerAndVignette()
+	buildBossBar()
+	buildCinematic()
+	buildFxButton()
+	task.spawn(watchBosses)
 	if controllers.InputController.IsTouchOnly() then
 		HUDController.ToggleStats() -- plegado por defecto en móvil
 	end
@@ -21144,7 +22762,7 @@ return HUDController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="229">
+        <Item class="ModuleScript" referent="232">
           <Properties>
             <string name="Name">InputController</string>
             <string name="Source"><![CDATA[--[[
@@ -21157,6 +22775,7 @@ return HUDController
 	  SelectOption(index)  teclas 1/2/3 (o botones X/Y/B del mando)
 	  Confirm()            Enter / R / botón A (reiniciar tras la derrota)
 	  ToggleStats()        Tab / C
+	  ToggleFx()           G (efectos completos / reducidos)
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -21169,6 +22788,7 @@ local InputController = {}
 InputController.SelectOption = Signal.new()
 InputController.Confirm = Signal.new()
 InputController.ToggleStats = Signal.new()
+InputController.ToggleFx = Signal.new()
 
 local OPTION_KEYS: { [Enum.KeyCode]: number } = {
 	[Enum.KeyCode.One] = 1,
@@ -21214,6 +22834,8 @@ function InputController.Start()
 			InputController.Confirm:Fire()
 		elseif STATS_KEYS[key] then
 			InputController.ToggleStats:Fire()
+		elseif key == Enum.KeyCode.G then
+			InputController.ToggleFx:Fire()
 		end
 	end)
 end
@@ -21222,7 +22844,7 @@ return InputController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="230">
+        <Item class="ModuleScript" referent="233">
           <Properties>
             <string name="Name">MusicController</string>
             <string name="Source"><![CDATA[--[[
@@ -21330,7 +22952,7 @@ return MusicController
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="231">
+        <Item class="ModuleScript" referent="234">
           <Properties>
             <string name="Name">UpgradeController</string>
             <string name="Source"><![CDATA[--[[
@@ -21758,11 +23380,11 @@ return UpgradeController
           </Properties>
         </Item>
       </Item>
-      <Item class="Folder" referent="232">
+      <Item class="Folder" referent="235">
         <Properties>
           <string name="Name">UI</string>
         </Properties>
-        <Item class="ModuleScript" referent="233">
+        <Item class="ModuleScript" referent="236">
           <Properties>
             <string name="Name">Theme</string>
             <string name="Source"><![CDATA[--[[
@@ -21776,10 +23398,13 @@ local Workspace = game:GetService("Workspace")
 
 local Theme = {}
 
+-- Estilo anime fantasy (Fase 2.5): azul noche, acentos cian (jugador) y dorado (recompensa).
 Theme.Colors = {
-	Panel = Color3.fromRGB(22, 26, 52),
-	PanelLight = Color3.fromRGB(36, 42, 82),
-	PanelStroke = Color3.fromRGB(120, 140, 220),
+	Panel = Color3.fromRGB(14, 18, 42),
+	PanelLight = Color3.fromRGB(30, 38, 84),
+	PanelStroke = Color3.fromRGB(110, 200, 255),
+	Accent = Color3.fromRGB(120, 235, 255),
+	Boss = Color3.fromRGB(214, 60, 120),
 	Gold = Color3.fromRGB(255, 208, 96),
 	Text = Color3.fromRGB(240, 244, 255),
 	TextDim = Color3.fromRGB(170, 182, 220),
@@ -21792,7 +23417,8 @@ Theme.Colors = {
 }
 
 Theme.Fonts = {
-	Title = Enum.Font.FredokaOne,
+	Title = Enum.Font.Bangers, -- rótulos (estilo cómic/manga)
+	Numbers = Enum.Font.FredokaOne, -- cifras y números de daño (máxima legibilidad)
 	Body = Enum.Font.GothamMedium,
 	Bold = Enum.Font.GothamBold,
 }
@@ -21857,14 +23483,19 @@ function Theme.Label(props: { [string]: any }): TextLabel
 	return Theme.New("TextLabel", defaults)
 end
 
--- Barra con fondo y relleno; devuelve (contenedor, relleno, texto).
+--[[
+	Barra estilizada: fondo oscuro, relleno con degradado horizontal (más claro
+	en la punta), brillo superior y borde luminoso del color del relleno.
+	Devuelve (contenedor, relleno, texto).
+]]
 function Theme.Bar(props: { [string]: any }, fillColor: Color3, backColor: Color3): (Frame, Frame, TextLabel)
 	local container = Theme.New("Frame", props, {
-		Theme.Corner(8),
-		Theme.Stroke(Theme.Colors.Shadow, 2, 0.3),
+		Theme.Corner(6),
+		Theme.Stroke(fillColor:Lerp(Color3.new(1, 1, 1), 0.2), 2, 0.25),
 	})
 	container.BackgroundColor3 = backColor
 	container.BorderSizePixel = 0
+	container.ClipsDescendants = false
 	local fill = Theme.New("Frame", {
 		Name = "Fill",
 		Size = UDim2.fromScale(0, 1),
@@ -21872,15 +23503,24 @@ function Theme.Bar(props: { [string]: any }, fillColor: Color3, backColor: Color
 		BorderSizePixel = 0,
 		Parent = container,
 	}, {
-		Theme.Corner(8),
+		Theme.Corner(6),
 		Theme.New("UIGradient", {
-			Rotation = 90,
-			Transparency = NumberSequence.new({
-				NumberSequenceKeypoint.new(0, 0),
-				NumberSequenceKeypoint.new(1, 0.25),
-			}),
+			Color = ColorSequence.new(
+				fillColor:Lerp(Color3.new(0, 0, 0), 0.25),
+				fillColor:Lerp(Color3.new(1, 1, 1), 0.35)
+			),
 		}),
 	})
+	Theme.New("Frame", {
+		Name = "Shine",
+		Size = UDim2.new(1, -6, 0.32, 0),
+		Position = UDim2.fromOffset(3, 2),
+		BackgroundColor3 = Color3.new(1, 1, 1),
+		BackgroundTransparency = 0.78,
+		BorderSizePixel = 0,
+		ZIndex = 2,
+		Parent = fill,
+	}, { Theme.Corner(4) })
 	local text = Theme.Label({
 		Name = "Text",
 		Size = UDim2.fromScale(1, 1),
@@ -21945,6 +23585,30 @@ function Theme.StartAutoScale()
 	bindCamera()
 end
 
+-- Panel con degradado vertical y línea de acento superior.
+function Theme.Panel(props: { [string]: any }, accent: Color3?): Frame
+	local panel = Theme.New("Frame", props, {
+		Theme.Corner(10),
+		Theme.Stroke(accent or Theme.Colors.PanelStroke, 2, 0.35),
+		Theme.New("UIGradient", {
+			Rotation = 90,
+			Color = ColorSequence.new(Theme.Colors.PanelLight, Theme.Colors.Panel),
+		}),
+	})
+	panel.BackgroundColor3 = Color3.new(1, 1, 1)
+	panel.BorderSizePixel = 0
+	Theme.New("Frame", {
+		Name = "AccentLine",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 0),
+		Size = UDim2.new(0.6, 0, 0, 2),
+		BackgroundColor3 = accent or Theme.Colors.Accent,
+		BorderSizePixel = 0,
+		Parent = panel,
+	})
+	return panel
+end
+
 function Theme.FormatTime(seconds: number): string
 	local total = math.max(0, math.floor(seconds))
 	return string.format("%02d:%02d", total // 60, total % 60)
@@ -21955,11 +23619,360 @@ return Theme
           </Properties>
         </Item>
       </Item>
-      <Item class="Folder" referent="234">
+      <Item class="Folder" referent="237">
         <Properties>
           <string name="Name">Util</string>
         </Properties>
-        <Item class="ModuleScript" referent="235">
+        <Item class="ModuleScript" referent="238">
+          <Properties>
+            <string name="Name">AuraSystem</string>
+            <string name="Source"><![CDATA[--[[
+	AuraSystem
+	Auras modulares (solo presentación, solo en el cliente). Cada aura se
+	construye con las capas de su perfil (VisualConfig.Auras):
+
+	  Rise    partículas que ascienden desde un volumen cilíndrico alrededor del cuerpo
+	  Orbit   motas fijadas a un punto que gira: orbitan alrededor del personaje
+	  Sparks  chispas rápidas que saltan desde la superficie
+	  Ring    anillo en el suelo que pulsa (doble en perfiles de alto nivel)
+	  Light   luz puntual (solo calidad alta)
+
+	API:
+	  local aura = AuraSystem.Attach(rootPart, "Electric", { Scale = 1, Height = 5 })
+	  aura:SetProfile("Fire")  aura:SetIntensity(0.6)  aura:Burst()  aura:Destroy()
+	  AuraSystem.SetQuality("Low")
+
+	Todas las auras se animan desde un único RenderStepped; las que quedan lejos
+	de la cámara (MaxDistance) apagan sus emisores. Las piezas son locales: no se
+	replican ni tienen colisión, masa ni consultas.
+]]
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local VisualConfig = require(ReplicatedStorage.Shared.Config.VisualConfig)
+local Signal = require(ReplicatedStorage.Shared.Signal)
+
+local AuraSystem = {}
+AuraSystem.__index = AuraSystem
+
+local TEXTURES = VisualConfig.Textures
+local active: { any } = {}
+local quality = VisualConfig.Quality[VisualConfig.DefaultQuality]
+local qualityName = VisualConfig.DefaultQuality
+-- Se dispara con el nombre del nivel de calidad ("High" / "Low").
+AuraSystem.QualityChanged = Signal.new()
+local connection: RBXScriptConnection? = nil
+
+local function localPart(name: string, size: Vector3): Part
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = size
+	part.Transparency = 1
+	part.Anchored = false
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.Massless = true
+	part.CastShadow = false
+	return part
+end
+
+local function weldTo(part: BasePart, target: BasePart, offset: CFrame)
+	part.CFrame = target.CFrame * offset
+	local weld = Instance.new("Weld")
+	weld.Part0 = target
+	weld.Part1 = part
+	weld.C0 = offset
+	weld.Parent = part
+	return weld
+end
+
+local function makeEmitter(layer: any, color: Color3, accent: Color3, parent: Instance, dark: boolean?): ParticleEmitter
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Texture = TEXTURES[layer.Texture] or TEXTURES.Sparkle
+	emitter.Color = ColorSequence.new(accent, color)
+	emitter.LightEmission = if dark then 0 else 0.9
+	emitter.LightInfluence = 0
+	emitter.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, layer.Size * 0.6),
+		NumberSequenceKeypoint.new(0.3, layer.Size),
+		NumberSequenceKeypoint.new(1, 0),
+	})
+	emitter.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, if dark then 0.35 else 0.15),
+		NumberSequenceKeypoint.new(0.7, 0.5),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	emitter.Lifetime = NumberRange.new(layer.Lifetime * 0.7, layer.Lifetime)
+	emitter.Speed = NumberRange.new(layer.Speed * 0.6, layer.Speed)
+	emitter.Rotation = NumberRange.new(0, 360)
+	emitter.RotSpeed = NumberRange.new(-90, 90)
+	emitter.Rate = 0
+	emitter.Parent = parent
+	return emitter
+end
+
+local function makeRing(color: Color3): Part
+	local ring = localPart("AuraRing", Vector3.new(0.12, 4, 4))
+	ring.Shape = Enum.PartType.Cylinder
+	ring.Material = Enum.Material.Neon
+	ring.Color = color
+	return ring
+end
+
+export type Options = { Scale: number?, Height: number?, FloorOffset: number?, Intensity: number?, Light: boolean? }
+
+--[[
+	Crea un aura alrededor de `root` (HumanoidRootPart o Root de un enemigo).
+	Height: altura del cuerpo (studs) para el volumen de emisión.
+]]
+function AuraSystem.Attach(root: BasePart, profileName: string, options: Options?)
+	local opts = options or {}
+	local self = setmetatable({}, AuraSystem)
+	self.Root = root
+	self.Scale = opts.Scale or 1
+	self.Height = opts.Height or 5
+	-- Distancia del centro de `root` al suelo (para el anillo).
+	self.FloorOffset = opts.FloorOffset or self.Height / 2
+	self.Intensity = opts.Intensity or 1
+	self.AllowLight = opts.Light ~= false
+	self.BurstUntil = 0
+	self.Phase = math.random() * 10
+	self.Visible = true
+
+	local folder = Instance.new("Folder")
+	folder.Name = "Aura"
+	self.Folder = folder
+
+	-- Volumen alrededor del cuerpo (las partículas nacen en su superficie).
+	local volume = localPart("AuraVolume", Vector3.new(4, self.Height, 4))
+	weldTo(volume, root, CFrame.new(0, 0, 0))
+	volume.Parent = folder
+	self.Volume = volume
+
+	-- Punto que gira para las motas en órbita.
+	local orbitPart = localPart("AuraOrbit", Vector3.new(0.2, 0.2, 0.2))
+	self.OrbitWeld = weldTo(orbitPart, root, CFrame.new())
+	orbitPart.Parent = folder
+	self.OrbitPart = orbitPart
+
+	self.Rings = {}
+	folder.Parent = root
+	self:SetProfile(profileName)
+	table.insert(active, self)
+	return self
+end
+
+function AuraSystem:_clearLayers()
+	for _, emitter in self.Emitters or {} do
+		emitter:Destroy()
+	end
+	for _, ring in self.Rings do
+		ring.Part:Destroy()
+	end
+	if self.Light then
+		self.Light:Destroy()
+		self.Light = nil
+	end
+	self.Emitters = {}
+	self.Rings = {}
+end
+
+function AuraSystem:SetProfile(profileName: string)
+	if self.ProfileName == profileName then
+		return
+	end
+	local profile = VisualConfig.Auras[profileName]
+	assert(profile, "Perfil de aura desconocido: " .. tostring(profileName))
+	self:_clearLayers()
+	self.ProfileName = profileName
+	self.Profile = profile
+	local scale = self.Scale
+	local radius = profile.Radius * scale
+	self.Volume.Size = Vector3.new(radius * 2, self.Height, radius * 2)
+
+	local emitters = {}
+	if profile.Rise then
+		local rise = makeEmitter(profile.Rise, profile.Color, profile.Accent, self.Volume, profile.Rise.Dark)
+		rise.Shape = Enum.ParticleEmitterShape.Cylinder
+		rise.ShapeStyle = Enum.ParticleEmitterShapeStyle.Surface
+		rise.ShapeInOut = Enum.ParticleEmitterShapeInOut.Outward
+		rise.EmissionDirection = Enum.NormalId.Top
+		rise.SpreadAngle = Vector2.new(12, 12)
+		rise.Acceleration = Vector3.new(0, profile.Rise.Speed * 0.6, 0)
+		emitters.Rise = rise
+	end
+	if profile.Sparks then
+		local sparks = makeEmitter(profile.Sparks, profile.Accent, profile.Color, self.Volume)
+		sparks.Shape = Enum.ParticleEmitterShape.Cylinder
+		sparks.ShapeStyle = Enum.ParticleEmitterShapeStyle.Surface
+		sparks.ShapeInOut = Enum.ParticleEmitterShapeInOut.Outward
+		sparks.SpreadAngle = Vector2.new(40, 40)
+		sparks.Drag = 4
+		emitters.Sparks = sparks
+	end
+	if profile.Orbit then
+		-- Emite desde un punto desplazado del eje que gira: las motas trazan una órbita.
+		local attachment = Instance.new("Attachment")
+		attachment.Position = Vector3.new(radius, 0, 0)
+		attachment.Parent = self.OrbitPart
+		local orbit = makeEmitter(profile.Orbit, profile.Color, profile.Accent, attachment)
+		orbit.LockedToPart = true
+		orbit.SpreadAngle = Vector2.new(180, 180)
+		orbit.Speed = NumberRange.new(0.2, profile.Orbit.Speed * 0.3)
+		emitters.Orbit = orbit
+	end
+	self.Emitters = emitters
+
+	if profile.Ring then
+		local count = if profile.Ring.Double then 2 else 1
+		for index = 1, count do
+			local ring = makeRing(if index == 1 then profile.Color else profile.Accent)
+			local weld =
+				weldTo(ring, self.Root, CFrame.new(0, -self.FloorOffset + 0.12, 0) * CFrame.Angles(0, 0, math.pi / 2))
+			ring.Parent = self.Folder
+			table.insert(self.Rings, { Part = ring, Weld = weld, Offset = (index - 1) * 0.5 })
+		end
+	end
+	if profile.Light and self.AllowLight then
+		local light = Instance.new("PointLight")
+		light.Color = profile.Color
+		light.Range = profile.Light.Range * scale
+		light.Brightness = profile.Light.Brightness
+		light.Shadows = false
+		light.Parent = self.Volume
+		self.Light = light
+	end
+	self:_applyRates()
+end
+
+function AuraSystem:_applyRates()
+	local profile = self.Profile
+	local burst = os.clock() < self.BurstUntil
+	local intensity = self.Intensity * (if burst then 1.8 else 1)
+	local scale = quality.ParticleScale * (if self.Visible then 1 else 0)
+	for name, emitter in self.Emitters do
+		local layer = profile[name]
+		emitter.Rate = layer.Rate * intensity * scale * math.max(1, self.Scale * 0.8)
+	end
+	if self.Light then
+		self.Light.Enabled = quality.Lights and self.Visible
+		self.Light.Brightness = profile.Light.Brightness * math.min(intensity, 1.5)
+	end
+	for _, ring in self.Rings do
+		ring.Part.LocalTransparencyModifier = if self.Visible and intensity > 0.05 then 0 else 1
+	end
+end
+
+function AuraSystem:SetIntensity(intensity: number)
+	if math.abs((self.Intensity or 0) - intensity) < 0.02 then
+		return
+	end
+	self.Intensity = intensity
+	self:_applyRates()
+end
+
+-- Ráfaga breve (subida de nivel, entrada del jefe): más emisión y un destello de chispas.
+function AuraSystem:Burst(duration: number?)
+	self.BurstUntil = os.clock() + (duration or 0.8)
+	for _, emitter in self.Emitters do
+		emitter:Emit(math.floor(10 * quality.ParticleScale + 0.5))
+	end
+	self:_applyRates()
+	task.delay((duration or 0.8) + 0.05, function()
+		if self.Folder and self.Folder.Parent then
+			self:_applyRates()
+		end
+	end)
+end
+
+function AuraSystem:Destroy()
+	local index = table.find(active, self)
+	if index then
+		table.remove(active, index)
+	end
+	if self.Folder then
+		self.Folder:Destroy()
+		self.Folder = nil
+	end
+end
+
+function AuraSystem.SetQuality(name: string)
+	if VisualConfig.Quality[name] == nil then
+		return
+	end
+	quality = VisualConfig.Quality[name]
+	qualityName = name
+	for _, aura in active do
+		aura:_applyRates()
+	end
+	AuraSystem.QualityChanged:Fire(name)
+end
+
+function AuraSystem.ToggleQuality(): string
+	AuraSystem.SetQuality(if qualityName == "High" then "Low" else "High")
+	return qualityName
+end
+
+function AuraSystem.GetQuality()
+	return quality
+end
+
+function AuraSystem.GetQualityName(): string
+	return qualityName
+end
+
+local function update()
+	local camera = Workspace.CurrentCamera
+	local cameraPosition = camera and camera.CFrame.Position or Vector3.zero
+	local now = os.clock()
+	for index = #active, 1, -1 do
+		local aura = active[index]
+		local root = aura.Root
+		if root.Parent == nil or aura.Folder == nil or aura.Folder.Parent == nil then
+			aura:Destroy()
+			continue
+		end
+		local visible = (root.Position - cameraPosition).Magnitude <= aura.Profile.MaxDistance
+		if visible ~= aura.Visible then
+			aura.Visible = visible
+			aura:_applyRates()
+		end
+		if not visible then
+			continue
+		end
+		-- Órbita y anillos pulsantes.
+		aura.OrbitWeld.C0 =
+			CFrame.Angles(0, now * (aura.Profile.Orbit and aura.Profile.Orbit.Spin or 1) + aura.Phase, 0)
+		local ringCfg = aura.Profile.Ring
+		if ringCfg then
+			for _, ring in aura.Rings do
+				local t = ((now + aura.Phase) / ringCfg.Pulse + ring.Offset) % 1
+				local size = ringCfg.Size * aura.Scale * (0.55 + 0.45 * t)
+				ring.Part.Size = Vector3.new(0.12, size, size)
+				ring.Part.Transparency = ringCfg.Transparency + (1 - ringCfg.Transparency) * t
+			end
+		end
+	end
+end
+
+function AuraSystem.Start()
+	if connection == nil then
+		connection = RunService.RenderStepped:Connect(function()
+			debug.profilebegin("SkyBonk.Auras")
+			update()
+			debug.profileend()
+		end)
+	end
+end
+
+return AuraSystem
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="239">
           <Properties>
             <string name="Name">FxPool</string>
             <string name="Source"><![CDATA[--[[
@@ -21967,13 +23980,19 @@ return Theme
 	Efectos visuales reutilizables del cliente (solo presentación):
 	  • emisores de partículas con nombre, emitidos en cualquier posición,
 	  • anillos en el suelo que se expanden y desvanecen (aparición, nivel, golpes),
-	  • resaltes (Highlight) cortos para indicar impactos.
+	  • resaltes (Highlight) cortos para indicar impactos,
+	  • formas propias: corte en media luna (Beam curvado), estrella de crítico
+	    y destello de impacto.
 	Todo se reutiliza: no se crean instancias por impacto ni por enemigo, y
 	las animaciones de los anillos se actualizan desde un único Heartbeat.
 ]]
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
+
+local VisualConfig = require(ReplicatedStorage.Shared.Config.VisualConfig)
+local TEXTURE_GLOW = VisualConfig.Textures.Glow
 
 local FxPool = {}
 
@@ -22133,9 +24152,174 @@ function FxPool.Flash(model: Instance, color: Color3, duration: number)
 	table.insert(activeHighlights, { Highlight = h, Until = os.clock() + duration })
 end
 
+------------------------------------------------- Efectos con forma propia
+-- Cada efecto se reutiliza desde su pool y se anima en el bucle central.
+type Shape = { Kind: string, Root: BasePart, Parts: { any }, Start: number, Duration: number, Data: any }
+local shapePools: { [string]: { Shape } } = { Slash = {}, Star = {}, Flash = {} }
+local activeShapes: { Shape } = {}
+
+local function fxPart(name: string): Part
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = Vector3.new(0.2, 0.2, 0.2)
+	part.Transparency = 1
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.CastShadow = false
+	return part
+end
+
+local function makeSlash(): Shape
+	local root = fxPart("FxSlash")
+	-- A0 a la izquierda con su eje X hacia delante; A1 a la derecha con el eje
+	-- X hacia atrás: la curva de Bézier del Beam se abomba hacia delante.
+	local a0 = Instance.new("Attachment")
+	a0.Parent = root
+	local a1 = Instance.new("Attachment")
+	a1.Parent = root
+	local beams = {}
+	for index, style in { { Width = 3.2, Light = 0.6 }, { Width = 0.9, Light = 1 } } do
+		local beam = Instance.new("Beam")
+		beam.Name = "SlashBeam" .. index
+		beam.Attachment0 = a0
+		beam.Attachment1 = a1
+		beam.Texture = TEXTURE_GLOW
+		beam.TextureMode = Enum.TextureMode.Stretch
+		beam.LightEmission = style.Light
+		beam.LightInfluence = 0
+		beam.Segments = 16
+		beam.FaceCamera = false
+		beam.Enabled = false
+		beam.Parent = root
+		beams[index] = { Beam = beam, Width = style.Width }
+	end
+	return { Kind = "Slash", Root = root, Parts = beams, Start = 0, Duration = 0.2, Data = { A0 = a0, A1 = a1 } }
+end
+
+local function makeStar(): Shape
+	local root = fxPart("FxStar")
+	local rays = {}
+	for index = 1, 4 do
+		local ray = fxPart("StarRay")
+		ray.Material = Enum.Material.Neon
+		ray.Parent = root
+		rays[index] = ray
+	end
+	return { Kind = "Star", Root = root, Parts = rays, Start = 0, Duration = 0.22, Data = {} }
+end
+
+local function makeFlash(): Shape
+	local root = fxPart("FxFlash")
+	root.Shape = Enum.PartType.Ball
+	root.Material = Enum.Material.Neon
+	return { Kind = "Flash", Root = root, Parts = {}, Start = 0, Duration = 0.1, Data = {} }
+end
+
+local function acquireShape(kind: string): Shape
+	local shape = table.remove(shapePools[kind])
+	if shape == nil then
+		shape = if kind == "Slash" then makeSlash() elseif kind == "Star" then makeStar() else makeFlash()
+	end
+	local s = shape :: Shape
+	s.Start = os.clock()
+	s.Root.Parent = folder
+	table.insert(activeShapes, s)
+	return s
+end
+
+--[[
+	Corte en media luna delante de `origin` (CFrame mirando al objetivo).
+	`radius` = semiancho del arco; `tilt` inclina el plano (variedad de tajos).
+]]
+function FxPool.Slash(origin: CFrame, radius: number, color: Color3, tilt: number, duration: number?)
+	local shape = acquireShape("Slash")
+	shape.Duration = duration or 0.2
+	shape.Root.CFrame = origin * CFrame.Angles(0, 0, tilt)
+	local forward, up = Vector3.new(0, 0, -1), Vector3.new(0, 1, 0)
+	shape.Data.A0.CFrame = CFrame.fromMatrix(Vector3.new(-radius, 0, 0), forward, up)
+	shape.Data.A1.CFrame = CFrame.fromMatrix(Vector3.new(radius, 0, 0), -forward, up)
+	shape.Data.Radius = radius
+	for index, entry in shape.Parts do
+		local beam: Beam = entry.Beam
+		beam.Color = if index == 1 then ColorSequence.new(color) else ColorSequence.new(Color3.new(1, 1, 1), color)
+		beam.CurveSize0 = radius * 1.25
+		beam.CurveSize1 = radius * 1.25
+		beam.Enabled = true
+	end
+end
+
+-- Estrella de crítico: cuatro rayos que se abren y se desvanecen.
+function FxPool.Star(position: Vector3, color: Color3, size: number?)
+	local shape = acquireShape("Star")
+	shape.Data.Size = size or 5
+	shape.Root.CFrame = CFrame.new(position) * CFrame.Angles(0, math.random() * math.pi, 0)
+	for _, ray in shape.Parts do
+		ray.Color = color
+	end
+end
+
+-- Destello esférico breve en el punto de impacto.
+function FxPool.ImpactFlash(position: Vector3, color: Color3, size: number?)
+	local shape = acquireShape("Flash")
+	shape.Data.Size = size or 2.2
+	shape.Root.Color = color
+	shape.Root.CFrame = CFrame.new(position)
+end
+
+local function updateShapes(now: number)
+	for index = #activeShapes, 1, -1 do
+		local shape = activeShapes[index]
+		local t = (now - shape.Start) / shape.Duration
+		if t >= 1 then
+			shape.Root.Parent = nil
+			if shape.Kind == "Slash" then
+				for _, entry in shape.Parts do
+					entry.Beam.Enabled = false
+				end
+			end
+			table.insert(shapePools[shape.Kind], shape)
+			table.remove(activeShapes, index)
+			continue
+		end
+		if shape.Kind == "Slash" then
+			-- Ejecución rápida (se abre) y desaparición (se estrecha y desvanece).
+			local open = 1 - (1 - math.min(1, t * 2.5)) ^ 2
+			for _, entry in shape.Parts do
+				local beam: Beam = entry.Beam
+				beam.Transparency = NumberSequence.new({
+					NumberSequenceKeypoint.new(0, 1),
+					NumberSequenceKeypoint.new(math.clamp(0.5 - open * 0.45, 0.02, 0.5), 0.1 + t * 0.9),
+					NumberSequenceKeypoint.new(math.clamp(0.5 + open * 0.45, 0.5, 0.98), 0.1 + t * 0.9),
+					NumberSequenceKeypoint.new(1, 1),
+				})
+				-- Centro más ancho que las puntas: forma de media luna.
+				beam.Width0 = entry.Width * (0.15 + 0.1 * (1 - t))
+				beam.Width1 = beam.Width0
+				beam.CurveSize0 = shape.Data.Radius * (1.1 + 0.4 * open)
+				beam.CurveSize1 = beam.CurveSize0
+			end
+		elseif shape.Kind == "Star" then
+			local size = shape.Data.Size * (0.4 + 0.6 * (1 - (1 - t) ^ 3))
+			for rayIndex, ray in shape.Parts do
+				local thickness = 0.35 * (1 - t) + 0.05
+				ray.Size = Vector3.new(thickness, thickness, size * (if rayIndex <= 2 then 1 else 0.6))
+				ray.CFrame = shape.Root.CFrame * CFrame.Angles(0, (rayIndex - 1) * math.pi / 4, 0)
+				ray.Transparency = t * t
+			end
+		else
+			local size = shape.Data.Size * (0.5 + 0.5 * t)
+			shape.Root.Size = Vector3.new(size, size, size)
+			shape.Root.Transparency = 0.2 + 0.8 * t
+		end
+	end
+end
+
 local function update()
 	debug.profilebegin("SkyBonk.FxPool")
 	local now = os.clock()
+	updateShapes(now)
 	for index = #activeRings, 1, -1 do
 		local entry = activeRings[index]
 		local t = (now - entry.Start) / entry.Duration
@@ -22195,7 +24379,7 @@ return FxPool
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="236">
+        <Item class="ModuleScript" referent="240">
           <Properties>
             <string name="Name">Sfx</string>
             <string name="Source"><![CDATA[--[[
@@ -22347,7 +24531,7 @@ return Sfx
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="237">
+  <Item class="Workspace" referent="241">
     <Properties>
       <string name="Name">Workspace</string>
       <float name="FallenPartsDestroyHeight">-445</float>
@@ -22355,12 +24539,12 @@ return Sfx
       <bool name="NeedsPivotMigration">false</bool>
       <bool name="StreamingEnabled">false</bool>
     </Properties>
-    <Item class="Folder" referent="238">
+    <Item class="Folder" referent="242">
       <Properties>
         <string name="Name">ActiveEnemies</string>
       </Properties>
     </Item>
-    <Item class="Folder" referent="239">
+    <Item class="Folder" referent="243">
       <Properties>
         <string name="Name">ExperienceOrbs</string>
       </Properties>

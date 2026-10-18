@@ -32,8 +32,32 @@ el resultado aparece en Output (`[SkyBonk Tests] N correctas, 0 fallidas`).
 | Elegir mejora | Clic o teclas **1 / 2 / 3** | Tocar la carta |
 | Volver a jugar | Botón o **R** / **Enter** | Botón |
 | Mostrar/ocultar estadísticas | **Tab** / **C** | Tocar "ESTADÍSTICAS" |
+| Efectos completos / reducidos | **G** | Tocar "FX" |
 
 Mando: X/Y/B eligen las cartas 1/2/3 y A reinicia.
+
+## Dirección artística (Fase 2.5)
+
+Fantasía anime de islas flotantes. Guía completa en [docs/ART_DIRECTION.md](docs/ART_DIRECTION.md);
+todos los valores en `src/shared/Config/VisualConfig.luau`. Sin plugins: todo son
+instancias nativas (ParticleEmitter, Beam, Trail, Highlight) y código, con texturas
+internas del cliente (`rbxasset://textures/particles/...`).
+
+- **Personaje**: paquete de animaciones *Ninja* de Roblox (aplicado al script `Animate`),
+  inclinación procedural en curvas y frenadas, estelas de viento, polvo al aterrizar,
+  retroceso al recibir daño, muerte con desaturación y reaparición con columna de luz.
+- **Auras** (`Util/AuraSystem`): Eléctrica, Ígnea, Arcana, Celestial, Vacío y Jefe; el
+  aura del jugador sigue su build real (rayo, crítico, XP, defensa, vida crítica, nivel).
+- **Espada del Vendaval**: hoja de un filo con guarda alada; corte en media luna en cada
+  tajo, destellos de impacto y crítico propio (estrella dorada + golpe de FOV).
+- **Enemigos**: ojos con brillo, llama del vacío en los esqueletos; el Rey Slime tiene aura
+  de jefe, entrada con franjas de cine y rótulo, y barra propia en el HUD.
+- **Zonas**: Bosque Sakura (farolillos, pétalos, cascada), Jardín Corrompido (grietas y
+  cristales del vacío), Santuario Celestial (torii, luciérnagas), Ruinas (runas, cascada).
+  Ciclo local de atardecer y tinte de color por zona. Los árboles y rocas que tapan la
+  cámara se vuelven semitransparentes.
+- **Efectos reducidos**: tecla **G** o botón «FX» (menos partículas, sin efectos
+  ambientales ni auras de enemigos).
 
 ## Arquitectura
 

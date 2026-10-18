@@ -13,6 +13,7 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage.Shared
 local GameConfig = require(Shared.Config.GameConfig)
+local VisualConfig = require(Shared.Config.VisualConfig)
 local Net = require(Shared.Net)
 
 local CameraController = {}
@@ -79,11 +80,52 @@ CameraController.Shake = function(strength: number, duration: number)
 	shake(strength, duration)
 end
 
+--[[
+	Golpe de campo de visión (críticos, subida de nivel, jefe): abre el FOV
+	`amount` grados y vuelve suavemente al valor base. Nunca se acumula por
+	encima del mayor golpe activo y siempre termina en el FOV base.
+]]
+local fovKick = 0
+local fovConnection: RBXScriptConnection? = nil
+function CameraController.FovKick(amount: number, recover: number?)
+	fovKick = math.max(fovKick, amount)
+	local rate = fovKick / (recover or VisualConfig.Camera.FovRecover)
+	if fovConnection then
+		return
+	end
+	fovConnection = RunService.RenderStepped:Connect(function(dt)
+		local camera = Workspace.CurrentCamera
+		fovKick = math.max(0, fovKick - rate * dt)
+		if camera then
+			camera.FieldOfView = GameConfig.Player.CameraFieldOfView + fovKick
+		end
+		if fovKick <= 0 and fovConnection then
+			fovConnection:Disconnect()
+			fovConnection = nil
+		end
+	end)
+end
+
+-- Restablece cualquier efecto de cámara (muerte, reinicio).
+function CameraController.Reset()
+	fovKick = 0
+	shakeUntil = 0
+	local camera = Workspace.CurrentCamera
+	if camera then
+		camera.FieldOfView = GameConfig.Player.CameraFieldOfView
+	end
+	local humanoid = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.CameraOffset = Vector3.zero
+	end
+end
+
 function CameraController.Init(_controllers) end
 
 function CameraController.Start()
 	player.CameraMode = Enum.CameraMode.Classic
 	player.CharacterAdded:Connect(function()
+		CameraController.Reset()
 		applyZoom()
 	end)
 	if player.Character then

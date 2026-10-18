@@ -133,7 +133,15 @@ if RunService:IsStudio() then
 				local spawned = 0
 				for _ = 1, count or 1 do
 					local position = services.SpawnService.FindSpawnPosition(run)
-					if position and services.EnemyService.Spawn(run, enemyId, position, services.SpawnService.DifficultyAt(run.State.Elapsed)) then
+					if
+						position
+						and services.EnemyService.Spawn(
+							run,
+							enemyId,
+							position,
+							services.SpawnService.DifficultyAt(run.State.Elapsed)
+						)
+					then
 						spawned += 1
 					end
 				end
@@ -172,6 +180,7 @@ if RunService:IsStudio() then
 		local bindable = Instance.new("BindableFunction")
 		bindable.Name = "SkyBonkDebug"
 		bindable.OnInvoke = function(command: string, ...)
+			-- selene: allow(global_usage)
 			local fn = _G.SkyBonkDebug[command]
 			if fn == nil then
 				return "comando desconocido: " .. tostring(command)

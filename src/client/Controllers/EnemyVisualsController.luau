@@ -26,9 +26,11 @@ local Workspace = game:GetService("Workspace")
 
 local Shared = ReplicatedStorage.Shared
 local GameConfig = require(Shared.Config.GameConfig)
+local VisualConfig = require(Shared.Config.VisualConfig)
 local EnemyConfig = require(Shared.Config.EnemyConfig)
 local Sfx = require(script.Parent.Parent.Util.Sfx)
 local FxPool = require(script.Parent.Parent.Util.FxPool)
+local AuraSystem = require(script.Parent.Parent.Util.AuraSystem)
 
 local EnemyVisualsController = {}
 
@@ -65,6 +67,7 @@ type Visual = {
 	BodyColor: Color3,
 	Extras: { BasePart }, -- ojos, núcleo, corona (se ocultan al aparecer/morir)
 	Telegraph: Part?,
+	Aura: any?, -- aura del jefe (AuraSystem)
 	-- Esqueleto
 	RigWeld: Weld?,
 	RigBaseC0: CFrame,
@@ -75,6 +78,7 @@ type Visual = {
 }
 
 local visuals: { [Model]: Visual } = {}
+local controllersRef: any = nil
 local animations: { [string]: Animation } = {}
 local ragdolls = 0
 
@@ -208,15 +212,29 @@ local function onStateChanged(visual: Visual)
 		Sfx.PlayAt("EnemyWindup", position, if def.AttackKind == "Slam" then 0.7 else 1.1)
 		if def.AttackKind == "Slam" then
 			-- Zona de peligro del Rey: crece durante la anticipación.
+			-- Va por encima del anillo del aura (más alto y más opaco): el peligro
+			-- siempre se lee, aunque haya efectos alrededor.
 			visual.Telegraph = FxPool.Ring(
-				position - Vector3.new(0, visual.Root.Size.Y / 2 - 0.1, 0),
+				position - Vector3.new(0, visual.Root.Size.Y / 2 - 0.3, 0),
 				1,
 				def.HitRange * 2,
 				visual.StateDuration,
 				WARNING,
-				0.55,
-				0.12
+				0.35,
+				0.22
 			)
+			FxPool.Ring(
+				position - Vector3.new(0, visual.Root.Size.Y / 2 - 0.28, 0),
+				def.HitRange * 2,
+				def.HitRange * 2,
+				visual.StateDuration,
+				WARNING,
+				0.7,
+				0.16
+			)
+			if visual.Aura then
+				visual.Aura:Burst(visual.StateDuration)
+			end
 		elseif visual.Kind == "Skeleton" then
 			local track = visual.Tracks.Attack
 			if track then
@@ -344,18 +362,62 @@ local function track(model: Instance)
 		end)
 	)
 	visuals[model] = visual
-	if visual.State == "Spawning" then
+	local entering = visual.State == "Spawning"
+	if entering then
 		visual.State = "" -- fuerza el efecto de aparición
 		onStateChanged(visual)
 		Sfx.PlayAt("EnemySpawn", root.Position, 1, 70)
 	end
+	if def.Scale > 1.5 then
+		-- Jefe: aura propia siempre visible (es información, no decoración).
+		visual.Aura = AuraSystem.Attach(root, "Boss", {
+			Scale = def.Scale * 0.5,
+			Height = root.Size.Y * 1.4,
+			FloorOffset = root.Size.Y / 2,
+			Intensity = 1,
+		})
+		if entering then
+			EnemyVisualsController.BossEntrance(visual)
+		end
+	end
+	local flame = model:FindFirstChild("SkullFlame", true) :: ParticleEmitter?
+	if flame then
+		flame.Enabled = AuraSystem.GetQuality().EnemyAuras
+	end
 	updateBar(visual)
+end
+
+-- Entrada del jefe: erupción, temblor, golpe de FOV y franjas de cine con rótulo.
+function EnemyVisualsController.BossEntrance(visual: Visual)
+	local position = visual.Root.Position
+	local ground = position - Vector3.new(0, visual.Root.Size.Y / 2 - 0.2, 0)
+	FxPool.Ring(ground, 2, 34, 0.9, visual.Def.Color, 0.15, 0.3)
+	FxPool.Ring(ground, 1, 20, 0.6, Color3.fromRGB(255, 200, 90), 0.3, 0.2)
+	FxPool.Emit("Dust", ground, 30)
+	FxPool.Emit("DeathBurst", position, 30, visual.Def.Color)
+	Sfx.PlayAt("BossSlam", position, 0.6, 200)
+	EnemyVisualsController.Shake(0.45, 0.5)
+	if controllersRef then
+		controllersRef.CameraController.FovKick(VisualConfig.Camera.BossFovKick, 0.9)
+		controllersRef.HUDController.Cinematic(
+			"¡" .. string.upper(visual.Def.DisplayName) .. "!",
+			"Un jefe ha despertado · esquiva su golpe en área",
+			VisualConfig.Camera.LetterboxTime
+		)
+	end
+	if visual.Aura then
+		visual.Aura:Burst(1.5)
+	end
 end
 
 local function untrack(model: Instance)
 	local visual = visuals[model :: Model]
 	if visual == nil then
 		return
+	end
+	if visual.Aura then
+		visual.Aura:Destroy()
+		visual.Aura = nil
 	end
 	for _, connection in visual.Connections do
 		connection:Disconnect()
@@ -398,8 +460,20 @@ function EnemyVisualsController.OnDied(model: Model?, position: Vector3, color: 
 	FxPool.Emit("DeathBurst", position, if big then 40 else FX.DeathBurstParticles, color)
 	Sfx.PlayAt("EnemyDeath", position, if big then 0.7 else 0.9 + math.random() * 0.25, 110)
 	if big then
-		FxPool.Ring(position - Vector3.new(0, 2, 0), 4, 26, 0.6, color, 0.3, 0.3)
-		EnemyVisualsController.Shake(0.4, 0.2)
+		-- Muerte del jefe: doble onda, estrella dorada y golpe de FOV.
+		FxPool.Ring(position - Vector3.new(0, 2, 0), 4, 30, 0.7, color, 0.25, 0.3)
+		FxPool.Ring(position - Vector3.new(0, 2, 0), 2, 18, 0.5, Color3.fromRGB(255, 200, 90), 0.3, 0.2)
+		FxPool.Star(position + Vector3.new(0, 2, 0), Color3.fromRGB(255, 200, 90), 14)
+		FxPool.Emit("Sparkles", position, 40)
+		EnemyVisualsController.Shake(0.5, 0.3)
+		if controllersRef then
+			controllersRef.CameraController.FovKick(VisualConfig.Camera.BossFovKick, 0.6)
+		end
+	end
+	local deadVisual = model and visuals[model]
+	if deadVisual and deadVisual.Aura then
+		deadVisual.Aura:Destroy()
+		deadVisual.Aura = nil
 	end
 	local visual = model and visuals[model]
 	if visual == nil or visual.Dying then
@@ -586,10 +660,20 @@ local function update(dt: number)
 end
 
 function EnemyVisualsController.Init(controllers)
+	controllersRef = controllers
 	shakeFn = controllers.CameraController.Shake
 end
 
 function EnemyVisualsController.Start()
+	AuraSystem.QualityChanged:Connect(function()
+		local enabled = AuraSystem.GetQuality().EnemyAuras
+		for model in visuals do
+			local flame = model:FindFirstChild("SkullFlame", true) :: ParticleEmitter?
+			if flame then
+				flame.Enabled = enabled
+			end
+		end
+	end)
 	task.spawn(function()
 		local list = {}
 		for _, id in { ANIMS.SkeletonIdle, ANIMS.SkeletonWalk, ANIMS.SkeletonRun, ANIMS.SkeletonAttack } do
